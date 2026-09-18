@@ -1,0 +1,19 @@
+BEGIN
+DECLARE total AS INTEGER
+DECLARE i AS INTEGER
+DECLARE marks[3] AS INTEGER
+SET marks[0] = 2
+SET marks[1] = 4
+SET marks[2] = 6
+SET total = 0
+SET i = 0
+WHILE i < 3 DO
+    SET total = total + marks[i]
+    SET i = i + 1
+ENDWHILE
+IF total == 12 THEN
+    PRINT total
+ELSE
+    PRINT 0
+ENDIF
+END

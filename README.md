@@ -1,0 +1,111 @@
+# Pseudocode to C
+
+[![Compiler tests](https://github.com/Sashwath-sash/pseudocode-to-c/actions/workflows/tests.yml/badge.svg)](https://github.com/Sashwath-sash/pseudocode-to-c/actions/workflows/tests.yml)
+
+A compiler project that translates a restricted pseudocode language into readable C. It demonstrates lexical analysis, recursive-descent parsing, an abstract syntax tree, scoped symbol tables, semantic checks, intermediate code, and simple optimization.
+
+The compiler uses Python's standard library. GCC compiles and runs generated programs during validation.
+
+## Quick start
+
+Requirements: **Python 3.10+**; **GCC** on PATH for execution and integration tests. Translation alone does not require GCC.
+
+```sh
+git clone https://github.com/Sashwath-sash/pseudocode-to-c.git
+cd pseudocode-to-c
+python main.py examples/review1.pseudo --show-all --run
+```
+
+This example prints `5` after showing every compiler stage:
+
+```text
+BEGIN
+DECLARE x AS INTEGER
+SET x = 2 + 3
+PRINT x
+END
+```
+
+```text
+Original IR      Optimized IR
+t1 = 2 + 3      x = 5
+x = t1          PRINT x
+PRINT x
+```
+
+Generate C without running it:
+
+```sh
+python main.py examples/review1.pseudo --out build/review1.c
+gcc build/review1.c -o build/review1
+```
+
+Run `./build/review1` on Linux/macOS, or `.\build\review1.exe` in Windows PowerShell. `RUN_REVIEW1.bat` also runs the stage-by-stage demo on Windows.
+
+## Supported features
+
+| Area | Implemented behavior |
+| --- | --- |
+| Types | INTEGER, REAL, CHAR; INTEGER-to-REAL widening |
+| Statements | DECLARE, SET, READ, PRINT |
+| Expressions | Arithmetic, unary signs, parentheses and comparison conditions |
+| Control flow | Nested IF/ELSE, WHILE, inclusive FOR with signed literal STEP |
+| Arrays | Fixed-size, zero-based, one-dimensional arrays |
+| Scope | Block-local declarations and shadowing |
+| Diagnostics | Source locations, declaration/type checks, constant index checks and basic parser recovery |
+| Optimization | Bounded integer constant folding and selected integer identities |
+| Inspection | Tokens, AST, symbols, original IR, optimized IR and generated C |
+
+Keywords are case-insensitive; identifiers are case-sensitive. Write one statement per line. See the [language reference](docs/language.md) for exact rules.
+
+## Examples and commands
+
+| Example | Command | Program output |
+| --- | --- | --- |
+| Constant folding | `python main.py examples/review1.pseudo --run` | `5` |
+| Read and sum | `python main.py examples/sum_for.pseudo --run --input examples/input5.txt` | `15` |
+| Arrays and nested blocks | `python main.py examples/nested.pseudo --run` | `12` |
+| Real and character values | `python main.py examples/real_char.pseudo --run` | `3.5`, `A` |
+| Descending loop | `python main.py examples/negative_step.pseudo --run` | `3`, `2`, `1` |
+| Invalid source | `python main.py examples/invalid.pseudo` | Diagnostics; exit status 1 |
+
+`--show-all` displays intermediate stages. `--out` chooses the output path; by default it is the source path with a `.c` extension. `--no-optimize` generates C directly from the original IR for comparison.
+
+`--run` captures output and supplies the contents of `--input` as standard input. Without `--input`, standard input is empty; this mode does not prompt interactively. Compile and launch the C program separately for interactive input. Compilation and execution each have a three-second timeout.
+
+## How it works
+
+```text
+Pseudocode -> Tokens -> AST -> Semantic analysis and symbols
+           -> Structured IR -> Optimized IR -> C -> GCC compile/run
+```
+
+| Module | Responsibility |
+| --- | --- |
+| `pseudoc/lexer.py` | Token scanning and source locations |
+| `pseudoc/parser.py`, `nodes.py` | Precedence parsing, block structure and AST |
+| `pseudoc/semantic.py` | Lexical scopes, types and static diagnostics |
+| `pseudoc/ir.py` | Typed three-address temporaries and structured control flow |
+| `pseudoc/optimizer.py` | Integer folding and algebraic simplification |
+| `pseudoc/cgen.py` | C generation from IR |
+| `pseudoc/compiler.py`, `main.py` | Translation API, CLI and GCC execution |
+
+The backend consumes IR. Loop conditions are reevaluated each iteration; FOR bounds are evaluated before the loop. Optimization does not assume mutable source variables are constants.
+
+## Tests
+
+```sh
+python -m unittest discover -s tests -v
+```
+
+**71 tests passed, with no skips**, on Windows using Python 3.13.2 and MinGW GCC 6.3.0. Tests cover translation stages, rejected programs, generated C execution, file handling, and optimized/unoptimized equivalence against expected outputs. See [validation details](docs/validation.md).
+
+GitHub Actions runs the same suite on Linux with Python 3.10 and 3.13. Without GCC locally, integration tests are explicitly skipped; a frontend-only run is not full execution validation.
+
+## Scope and remaining work
+
+This is a working educational prototype for a defined language subset. It does not accept arbitrary English. Functions, strings, logical AND/OR, multidimensional arrays, pointers, structures, dynamic allocation, a GUI, an interpreter and machine-code generation are not implemented.
+
+Definite-assignment analysis and runtime checks for dynamic array bounds, integer overflow and variable-zero division are unfinished. Input values must fit their declared types, variables must be initialized before use, and array accesses must stay in range. Generated programs otherwise inherit C's undefined behavior. Constant folding avoids out-of-range results but does not make overflowing source programs valid. Very deep expressions or blocks may exceed Python's recursion limit.
+
+The [Phase 1 comparison](docs/phase1-alignment.md) separates the report's design from the implemented subset. This repository continues the existing Review 1 prototype with validation fixes, regression tests and project documentation.

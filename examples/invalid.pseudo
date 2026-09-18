@@ -1,0 +1,5 @@
+BEGIN
+DECLARE x AS INTEGER
+SET y = 3
+SET x = 2.5
+END
