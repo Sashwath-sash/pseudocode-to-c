@@ -70,10 +70,10 @@ def cli(argv: list[str] | None = None) -> int:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(result.c_source, encoding='utf-8')
             print(f'Generated C: {target}')
-        elif args.interactive:
-            print('\n=== GENERATED C ===')
-            print(result.c_source, end='')
-        if args.show_all:
+        show_stages = args.show_all or args.interactive
+        if show_stages:
+            print('\n=== SOURCE PSEUDOCODE ===')
+            print(source, end='')
             print('\n=== TOKENS ===')
             print('\n'.join(map(str, result.tokens)))
             print('\n=== AST ===')
@@ -87,7 +87,7 @@ def cli(argv: list[str] | None = None) -> int:
             print('\n=== OPTIMIZED IR ===')
             print(result.optimized_ir_text())
             print('\n=== GENERATED C ===')
-            print(result.c_source)
+            print(result.c_source, end='')
         if args.run:
             stdout, stderr, returncode = compile_and_run(result.c_source, data)
             print('=== PROGRAM OUTPUT ===')

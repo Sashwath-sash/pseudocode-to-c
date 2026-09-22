@@ -71,6 +71,8 @@ Keywords are case-insensitive; identifiers are case-sensitive. Write one stateme
 
 `--show-all` displays intermediate stages. `--out` chooses the output path; by default it is the source path with a `.c` extension. `--no-optimize` generates C directly from the original IR for comparison.
 
+For a live demonstration, run `python main.py --interactive`, enter the pseudocode line by line, and finish with `END`. Interactive mode automatically displays the source, tokens, AST, symbol table, original IR, optimized IR, and generated C.
+
 `--run` captures output and supplies the contents of `--input` as standard input. Without `--input`, standard input is empty; this mode does not prompt interactively. Compile and launch the C program separately for interactive input. Compilation and execution each have a three-second timeout.
 
 ## How it works

@@ -4,6 +4,7 @@ import io
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from main import cli, compile_and_run
@@ -99,6 +100,18 @@ class CLITests(unittest.TestCase):
             for label in ('TOKENS', 'AST', 'SYMBOL TABLE', 'INTERMEDIATE REPRESENTATION', 'GENERATED C'):
                 self.assertIn(label, out)
             self.assertIn('2 + 3', src.with_suffix('.c').read_text())
+
+    def test_interactive_displays_every_compiler_stage(self):
+        typed = iter(('BEGIN', 'DECLARE x AS INTEGER', 'SET x = 2 + 3', 'PRINT x', 'END'))
+        with patch('builtins.input', side_effect=typed):
+            code, out, err = self.invoke(['--interactive'])
+        self.assertEqual((code, err), (0, ''))
+        for label in (
+            'SOURCE PSEUDOCODE', 'TOKENS', 'AST', 'SYMBOL TABLE',
+            'INTERMEDIATE REPRESENTATION', 'OPTIMIZED IR', 'GENERATED C'
+        ):
+            self.assertIn(f'=== {label} ===', out)
+        self.assertIn('x = 5;', out)
 
 
 @unittest.skipUnless(shutil.which('gcc'), 'GCC is required')
