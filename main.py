@@ -11,6 +11,7 @@ from pathlib import Path
 from pseudoc.compiler import compile_pseudocode
 from pseudoc.astview import render as render_ast
 from pseudoc.errors import TranslationError
+from pseudoc.optimizer_check import check_optimizer
 
 
 def compile_and_run(c_code: str, user_input: str = '', timeout: int = 3) -> tuple[str, str, int]:
@@ -44,8 +45,21 @@ def cli(argv: list[str] | None = None) -> int:
     ap.add_argument('--no-optimize', action='store_true', help='generate C from the original IR for comparison')
     ap.add_argument('--interactive', action='store_true', help='type pseudocode line by line; finish with END')
     ap.add_argument('--input', type=Path, help='optional UTF-8 stdin text file, for --run')
+    ap.add_argument('--fuzz-optimizer', action='store_true', help='generate programs and compare optimized and unoptimized executions')
+    ap.add_argument('--cases', type=int, default=50, help='number of generated programs for --fuzz-optimizer (default: 50)')
+    ap.add_argument('--seed', type=int, default=20260923, help='repeatable random seed for --fuzz-optimizer')
     args = ap.parse_args(argv)
     try:
+        if args.fuzz_optimizer:
+            result = check_optimizer(args.cases, args.seed)
+            print(f"Generated programs: {result.cases}")
+            print(f"Optimized/unoptimized execution comparisons: {result.comparisons}")
+            print(f"Behavior mismatches: {len(result.mismatches)}")
+            if result.mismatches:
+                print("\n\n".join(result.mismatches), file=sys.stderr)
+                return 1
+            print("All optimized and unoptimized outputs matched.")
+            return 0
         if args.interactive:
             print('Enter pseudocode one line at a time. Type END on its own line to compile:')
             lines = []

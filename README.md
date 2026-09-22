@@ -54,6 +54,7 @@ Run `./build/review1` on Linux/macOS, or `.\build\review1.exe` in Windows PowerS
 | Scope | Block-local declarations and shadowing |
 | Diagnostics | Source locations, declaration/type checks, constant index checks and basic parser recovery |
 | Optimization | Bounded integer constant folding and selected integer identities |
+| Optimization validation | Seeded program generation and optimized/unoptimized execution comparison |
 | Inspection | Tokens, AST, symbols, original IR, optimized IR and generated C |
 
 Keywords are case-insensitive; identifiers are case-sensitive. Write one statement per line. See the [language reference](docs/language.md) for exact rules.
@@ -70,6 +71,8 @@ Keywords are case-insensitive; identifiers are case-sensitive. Write one stateme
 | Invalid source | `python main.py examples/invalid.pseudo` | Diagnostics; exit status 1 |
 
 `--show-all` displays intermediate stages. `--out` chooses the output path; by default it is the source path with a `.c` extension. `--no-optimize` generates C directly from the original IR for comparison.
+
+Run `python main.py --fuzz-optimizer --cases 30 --seed 20260923` to generate bounded test programs that target the current optimizer's rules, compile each both ways, and compare outputs and exit statuses. Matching runs are evidence for those generated inputs only, not a proof of correctness.
 
 For a live demonstration, run `python main.py --interactive`, enter the pseudocode line by line, and finish with `END`. Interactive mode automatically displays the source, tokens, AST, symbol table, original IR, optimized IR, and generated C.
 
@@ -100,7 +103,7 @@ The backend consumes IR. Loop conditions are reevaluated each iteration; FOR bou
 python -m unittest discover -s tests -v
 ```
 
-**71 tests passed, with no skips**, on Windows using Python 3.13.2 and MinGW GCC 6.3.0. Tests cover translation stages, rejected programs, generated C execution, file handling, and optimized/unoptimized equivalence against expected outputs. See [validation details](docs/validation.md).
+**73 tests passed, with no skips**, on Windows using Python 3.13.2 and MinGW GCC 6.3.0. Tests cover translation stages, rejected programs, generated C execution, file handling, reproducible generation, and optimized/unoptimized equivalence against expected outputs. See [validation details](docs/validation.md).
 
 GitHub Actions runs the same suite on Linux with Python 3.10 and 3.13. Without GCC locally, integration tests are explicitly skipped; a frontend-only run is not full execution validation.
 
@@ -110,4 +113,4 @@ This is a working educational prototype for a defined language subset. It does n
 
 Definite-assignment analysis and runtime checks for dynamic array bounds, integer overflow and variable-zero division are unfinished. Input values must fit their declared types, variables must be initialized before use, and array accesses must stay in range. Generated programs otherwise inherit C's undefined behavior. Constant folding avoids out-of-range results but does not make overflowing source programs valid. Very deep expressions or blocks may exceed Python's recursion limit.
 
-The [Phase 1 comparison](docs/phase1-alignment.md) separates the report's design from the implemented subset. This repository continues the existing Review 1 prototype with validation fixes, regression tests and project documentation.
+The [Phase 1 comparison](docs/phase1-alignment.md) separates the report's design from the implemented subset. The [novelty and research note](docs/novelty-and-related-work.md) describes the implemented Phase 2 improvement and its research context. This repository continues the existing Review 1 prototype with validation fixes, regression tests and project documentation.

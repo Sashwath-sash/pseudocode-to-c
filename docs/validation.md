@@ -1,14 +1,14 @@
 # Validation
 
-Local validation on 18 September 2026 used Windows, Python 3.13.2 and MinGW GCC 6.3.0.
+Local validation on 23 September 2026 used Windows, Python 3.13.2 and MinGW GCC 6.3.0.
 
 ```text
 python -m unittest discover -s tests -v
-Ran 71 tests in 13.151s
+Ran 73 tests in 12.354s
 OK
 ```
 
-There were no failures or skips. The original 51-test suite also passed before changes. The expanded suite adds 20 tests: 7 boundary tests, 5 CLI tests and 8 execution regressions. Seven execution regressions compile both optimized and unoptimized IR and compare each run with a specified expected output. The remaining execution regression checks invalid input handling.
+There were no failures or skips. Seven execution regressions compile both optimized and unoptimized IR and compare each run with a specified expected output. Another test confirms the optimizer-check generator is deterministic for a given seed and creates compilable input.
 
 Tests check source diagnostics, precedence, nesting, scope, arrays, types, inclusive loops, input/output, constant folding, generated temporary names, and preservation of source/runtime input files. Executable tests compile C with warnings enabled and run with a timeout.
 
@@ -26,5 +26,13 @@ python main.py examples/invalid.pseudo
 The valid examples print 5 and 15 respectively. The invalid example must fail translation with status 1.
 
 GitHub Actions runs the suite with GCC on Linux using Python 3.10 and 3.13. The README badge links to current remote results. Local GCC-dependent cases are skipped if GCC is missing; inspect the skipped count.
+
+## Optimization differential run
+
+Command: `python main.py --fuzz-optimizer --cases 30 --seed 20260923`
+
+Result: 30 generated pseudocode programs, 60 executions compared (optimized and unoptimized for each), zero observed output or exit-status mismatches. The generator deliberately includes constant arithmetic, unary operations, integer identities, nested expressions, branches, a bounded while loop and a short for loop. Reusing the same seed reproduces the same programs.
+
+This is an initial experiment, not a correctness proof. The generated domain is intentionally small and avoids many dangerous values; it does not establish equivalence for every valid source program or test memory safety, integer overflow, or all compiler/runtime environments.
 
 These tests establish behavior for covered cases, not a proof for every input. Uninitialized reads, dynamic out-of-bounds accesses, arithmetic overflow and invalid runtime numeric ranges remain outside validated program conditions. Compilation warnings are not currently treated as failures.

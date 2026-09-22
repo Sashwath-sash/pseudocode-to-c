@@ -14,5 +14,8 @@ This comparison uses `Pseudocode_to_C_Phase1_FINAL.docx` and the source from `Ps
 | Expression after STEP in simplified grammar | Narrower implementation: signed integer literal only |
 | Error detection and basic recovery | Stage-specific errors and statement-boundary synchronization |
 | Optional functions after the core | Not implemented |
+| Phase 2 originality opportunity | Implemented: seeded programs target the existing optimizer rules; GCC execution is compared before and after optimization |
 
 Runtime bounds checking, definite-assignment analysis, overflow protection, richer input validation and broader error recovery remain possible improvements. No GUI, interpreter, advanced optimizer or native-code backend is claimed.
+
+The optimizer check is a Phase 2 validation-method improvement. It checks observable behavior over a reproducible generated set; it is not a formal proof or a claim of a new general-purpose fuzzing algorithm.

@@ -10,6 +10,7 @@ from pathlib import Path
 from main import cli, compile_and_run
 from pseudoc.compiler import compile_pseudocode
 from pseudoc.errors import TranslationError
+from pseudoc.optimizer_check import generate_case
 
 
 def program(body):
@@ -17,6 +18,14 @@ def program(body):
 
 
 class BoundaryTests(unittest.TestCase):
+    def test_optimizer_generated_case_is_seed_reproducible(self):
+        first = generate_case(20260923, 4)
+        self.assertEqual(first, generate_case(20260923, 4))
+        self.assertNotEqual(first, generate_case(20260923, 5))
+        self.assertIn('x * 1', first)
+        self.assertIn('STEP +1', first)
+        compile_pseudocode(first)
+
     def test_non_ascii_numeric_literal(self):
         with self.assertRaisesRegex(TranslationError, 'Lexical error'):
             compile_pseudocode(program('PRINT \u0661.\u0665'))
