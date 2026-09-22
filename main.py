@@ -37,25 +37,42 @@ def compile_and_run(c_code: str, user_input: str = '', timeout: int = 3) -> tupl
 
 def cli(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description='Compiler-based restricted pseudocode to C translator')
-    ap.add_argument('source', type=Path, help='pseudocode .pseudo source file')
+    ap.add_argument('source', type=Path, nargs='?', help='pseudocode .pseudo source file')
     ap.add_argument('--out', type=Path, help='path for generated .c file; default: source filename.c')
     ap.add_argument('--show-all', action='store_true', help='display tokens, AST, symbol table, IR, optimized IR, and C')
     ap.add_argument('--run', action='store_true', help='compile with GCC and run locally (3-second timeout)')
     ap.add_argument('--no-optimize', action='store_true', help='generate C from the original IR for comparison')
+    ap.add_argument('--interactive', action='store_true', help='type pseudocode line by line; finish with END')
     ap.add_argument('--input', type=Path, help='optional UTF-8 stdin text file, for --run')
     args = ap.parse_args(argv)
     try:
-        source = args.source.read_text(encoding='utf-8')
+        if args.interactive:
+            print('Enter pseudocode one line at a time. Type END on its own line to compile:')
+            lines = []
+            while True:
+                line = input()
+                lines.append(line)
+                if line.strip().upper() == 'END':
+                    break
+            source = '\n'.join(lines) + '\n'
+        elif args.source:
+            source = args.source.read_text(encoding='utf-8')
+        else:
+            raise RuntimeError('provide a .pseudo source file or use --interactive')
         result = compile_pseudocode(source, optimize_ir=not args.no_optimize)
-        target = args.out or args.source.with_suffix('.c')
-        if target.resolve() == args.source.resolve():
+        target = args.out or (args.source.with_suffix('.c') if args.source else None)
+        if target is not None and args.source and target.resolve() == args.source.resolve():
             raise RuntimeError('output path must differ from pseudocode input path')
-        if args.input and target.resolve() == args.input.resolve():
+        if target is not None and args.input and target.resolve() == args.input.resolve():
             raise RuntimeError('output path must differ from runtime input path')
         data = args.input.read_text(encoding='utf-8') if args.run and args.input else ''
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(result.c_source, encoding='utf-8')
-        print(f'Generated C: {target}')
+        if target is not None:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(result.c_source, encoding='utf-8')
+            print(f'Generated C: {target}')
+        elif args.interactive:
+            print('\n=== GENERATED C ===')
+            print(result.c_source, end='')
         if args.show_all:
             print('\n=== TOKENS ===')
             print('\n'.join(map(str, result.tokens)))
