@@ -4,7 +4,7 @@ import ast
 import re
 from .errors import Issue, TranslationError
 
-KEYWORDS = frozenset('BEGIN END DECLARE AS SET READ PRINT IF THEN ELSE ENDIF WHILE DO ENDWHILE FOR TO STEP ENDFOR INTEGER REAL CHAR'.split())
+KEYWORDS = frozenset('BEGIN END DECLARE AS SET READ PRINT REQUIRE ENSURE IF THEN ELSE ENDIF WHILE DO ENDWHILE FOR TO STEP ENDFOR INTEGER REAL CHAR'.split())
 TOKEN_RE = re.compile(r'[A-Za-z_][A-Za-z_0-9]*|[0-9]+\.[0-9]+|[0-9]+|<=|>=|==|!=|[+*/%\-<>=()\[\]]')
 
 @dataclass(frozen=True)

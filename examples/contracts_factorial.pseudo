@@ -1,0 +1,14 @@
+BEGIN
+DECLARE n AS INTEGER
+DECLARE i AS INTEGER
+DECLARE result AS INTEGER
+READ n
+REQUIRE n >= 0
+REQUIRE n <= 12
+SET result = 1
+FOR i = 1 TO n DO
+SET result = result * i
+ENDFOR
+ENSURE result >= 1
+PRINT result
+END

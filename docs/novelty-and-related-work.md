@@ -1,5 +1,13 @@
 # Phase 2 improvement and related work
 
+## Contract checks and contextual diagnostic hints
+
+The restricted language now supports `REQUIRE condition` and `ENSURE condition`. These statements check a precondition or postcondition at their source position. Conditions the analyzer can prove false from bounded numeric constants are rejected before C generation; value-dependent conditions become C runtime guards that report the contract kind and pseudocode line, then exit with status 1. Conditions use the language's existing one-comparison grammar, and checks must be placed after values are initialized and before any operation they protect.
+
+For an undeclared name, semantic analysis compares it with identifiers visible in the current lexical scopes and includes a similar-name suggestion when the match is strong enough. The compiler never edits the source automatically. This is a small deterministic heuristic, not machine learning or an intent-recovery system.
+
+Runnable examples cover guarded integer division, a bounded factorial, dynamic array-index guards, and a misspelled identifier suggestion in [docs/examples.md](examples.md). Contracts, runtime assertions and typo hints are established ideas. The project contribution is their implementation within this restricted pseudocode-to-C pipeline; no claim is made that the general ideas are new. Limits include no Boolean AND/OR, no automatic range analysis, no definite-assignment analysis, and no inferred repairs for arbitrary logic errors.
+
 ## Project contribution
 
 The project adds a repeatable, optimization-focused differential check for its pseudocode compiler. A seeded generator creates valid, bounded programs containing expressions that exercise the current integer constant-folding and identity rules, along with branches and short loops. The harness translates each input twice, compiles both generated C programs with GCC, runs them, and compares standard output, standard error and exit status. A mismatch prints the seed, case number and pseudocode so the example can be reproduced.

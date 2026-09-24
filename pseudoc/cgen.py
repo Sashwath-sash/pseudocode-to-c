@@ -1,5 +1,5 @@
 """C99 generator from the optimized intermediate representation."""
-from .ir import Block, Let, Declare, Assign, Read, Print, If, While, For, Place
+from .ir import Block, Let, Declare, Assign, Read, Print, Contract, If, While, For, Place
 
 TYPES = {'INTEGER':'int', 'REAL':'double', 'CHAR':'char'}
 FMT_OUT = {'INTEGER':'%d\\n', 'REAL':'%g\\n', 'CHAR':'%c\\n'}
@@ -39,6 +39,14 @@ class CGenerator:
             self.emit(f'if (scanf("{FMT_IN[ins.target.dtype]}", &{self._place(ins.target)}) != 1) return 1;')
         elif isinstance(ins, Print):
             self.emit(f'printf("{FMT_OUT[ins.value.dtype]}", {ins.value.text});')
+        elif isinstance(ins, Contract):
+            message = 'Precondition' if ins.kind == 'REQUIRE' else 'Postcondition'
+            self.emit(f'if (!({ins.condition.text})) {{')
+            self.depth += 1
+            self.emit(f'fprintf(stderr, "{message} failed at pseudocode line {ins.line}\\n");')
+            self.emit('return 1;')
+            self.depth -= 1
+            self.emit('}')
         elif isinstance(ins, If):
             self._block(Block(ins.setup))
             self.emit(f'if ({ins.condition.text}) {{')

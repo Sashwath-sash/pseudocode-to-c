@@ -12,6 +12,8 @@ statement   = DECLARE identifier [ "[" integer "]" ] AS type NL
             | SET location "=" expression NL
             | READ location NL
             | PRINT expression NL
+            | REQUIRE condition NL
+            | ENSURE condition NL
             | IF condition THEN NL { statement }
                 [ ELSE NL { statement } ] ENDIF NL
             | WHILE condition DO NL { statement } ENDWHILE NL
@@ -28,6 +30,8 @@ factor      = ( "+" | "-" ) factor | "(" expression ")"
 ```
 
 The final physical newline is optional. Conditions require exactly one comparison; Boolean combinations are unsupported. Arithmetic associates left to right, with multiplication/division/remainder before addition/subtraction.
+
+`REQUIRE condition` checks a precondition at that point in execution. `ENSURE condition` checks a postcondition at that point. Both use the existing single-comparison condition grammar. Put a REQUIRE before the operation it protects and an ENSURE after the operation whose result it checks. Multiple checks can be written on separate lines; `AND` and `OR` are not supported. The compiler rejects a contract it can prove is always false and emits a runtime diagnostic for conditions that depend on values. A failed runtime contract prints its kind and source line to standard error and exits with status 1. Contracts do not initialize variables or automatically guard later operations; ensure every referenced value has already been assigned or read.
 
 ## Types and values
 
@@ -54,4 +58,4 @@ The iterator is incremented after every iteration, including the last. Keep that
 
 PRINT emits one value and a newline using `%d`, `%g` or `%c`. READ uses typed C input conversion; character input skips whitespace. Invalid input or end of input makes the generated program return status 1. Out-of-range numeric input is not validated by a separate parser; provide values within the target type's range.
 
-Lexical, syntax and semantic failures prevent C generation. Parser recovery can collect multiple errors at statement boundaries but does not guarantee a complete list. The CLI leaves any preexisting output file untouched on translation failure; check its exit status before using an old `.c` file.
+Lexical, syntax and semantic failures prevent C generation. When an undeclared identifier closely resembles a name visible in the current scope, the semantic diagnostic suggests that name; it never changes source automatically. Parser recovery can collect multiple errors at statement boundaries but does not guarantee a complete list. The CLI leaves any preexisting output file untouched on translation failure; check its exit status before using an old `.c` file.

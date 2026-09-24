@@ -46,6 +46,12 @@ class Print:
     value: Atom
 
 @dataclass(frozen=True)
+class Contract:
+    kind: str
+    condition: Atom
+    line: int
+
+@dataclass(frozen=True)
 class If:
     setup: tuple[Instruction, ...]
     condition: Atom
@@ -72,7 +78,7 @@ class For:
 class Block:
     instructions: tuple[Instruction, ...]
 
-Instruction = Let | Declare | Assign | Read | Print | If | While | For
+Instruction = Let | Declare | Assign | Read | Print | Contract | If | While | For
 
 class IRBuilder:
     def __init__(self, symbols: list[Symbol]):
@@ -154,6 +160,11 @@ class IRBuilder:
             out.append(Read(self.place(s.target, out)))
         elif isinstance(s, n.Print):
             out.append(Print(self.expr(s.value, out)))
+        elif isinstance(s, (n.Require, n.Ensure)):
+            setup: list[Instruction] = []
+            condition = self.condition(s.condition, setup)
+            out.extend(setup)
+            out.append(Contract('REQUIRE' if isinstance(s, n.Require) else 'ENSURE', condition, s.line))
         elif isinstance(s, n.If):
             setup: list[Instruction] = []
             cond = self.condition(s.condition, setup)
@@ -209,6 +220,8 @@ def _render(instr: Instruction, level: int, output: list[str]):
         output.append(f'{pre}READ {_p(instr.target)}')
     elif isinstance(instr, Print):
         output.append(f'{pre}PRINT {instr.value.text}')
+    elif isinstance(instr, Contract):
+        output.append(f'{pre}{instr.kind} {instr.condition.text}  # source line {instr.line}')
     elif isinstance(instr, If):
         for step in instr.setup:
             _render(step, level, output)

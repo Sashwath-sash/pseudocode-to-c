@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pseudoc.compiler import compile_pseudocode
 from pseudoc.errors import TranslationError
+from pseudoc.astview import render as render_ast
 from main import compile_and_run
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,6 +66,24 @@ class FrontendTests(unittest.TestCase):
     def test_rejects_undeclared_variable(self):
         with self.assertRaisesRegex(TranslationError, "undeclared identifier 'x'"):
             compile_pseudocode(program('PRINT x'))
+
+    def test_undeclared_variable_suggests_similar_visible_name(self):
+        with self.assertRaisesRegex(TranslationError, "did you mean 'total'"):
+            compile_pseudocode(program('DECLARE total AS INTEGER\nSET totl = 4'))
+
+    def test_constant_false_precondition_is_rejected(self):
+        with self.assertRaisesRegex(TranslationError, 'REQUIRE condition is always false'):
+            compile_pseudocode(program('REQUIRE 1 == 2'))
+
+    def test_constant_false_postcondition_is_rejected(self):
+        with self.assertRaisesRegex(TranslationError, 'ENSURE condition is always false'):
+            compile_pseudocode(program('ENSURE 3 < 2'))
+
+    def test_contracts_appear_in_ast_and_ir(self):
+        result = compile_pseudocode(program('DECLARE x AS INTEGER\nREAD x\nREQUIRE x >= 0\nENSURE x < 10'))
+        self.assertIn('Precondition: x >= 0', render_ast(result.ast))
+        self.assertIn('REQUIRE', result.ir_text())
+        self.assertIn('ENSURE', result.ir_text())
 
     def test_rejects_duplicate_in_same_scope(self):
         with self.assertRaisesRegex(TranslationError, 'duplicate declaration'):
@@ -152,6 +171,46 @@ class GCCIntegrationTests(unittest.TestCase):
     def test_review1_sample(self):
         out, _ = self.run_pseudo((ROOT / 'examples/review1.pseudo').read_text())
         self.assertEqual(out, '5\n')
+
+    def test_contract_checked_division_valid_input(self):
+        src = (ROOT / 'examples/contracts_division.pseudo').read_text()
+        stdin = (ROOT / 'examples/division_valid.txt').read_text()
+        for enabled in (True, False):
+            with self.subTest(optimized=enabled):
+                result = compile_pseudocode(src, optimize_ir=enabled)
+                out, err, status = compile_and_run(result.c_source, stdin)
+                self.assertEqual((out, err, status), ('5\n', '', 0))
+                self.assertIn('Precondition failed at pseudocode line', result.c_source)
+                self.assertIn('Postcondition failed at pseudocode line', result.c_source)
+
+    def test_contract_checked_division_zero_divisor_stops_before_division(self):
+        result = compile_pseudocode((ROOT / 'examples/contracts_division.pseudo').read_text())
+        out, err, status = compile_and_run(result.c_source, (ROOT / 'examples/division_zero.txt').read_text())
+        self.assertEqual(out, '')
+        self.assertIn('Precondition failed at pseudocode line 7', err)
+        self.assertEqual(status, 1)
+
+    def test_contract_checked_factorial(self):
+        out, _ = self.run_pseudo((ROOT / 'examples/contracts_factorial.pseudo').read_text(), '5\n')
+        self.assertEqual(out, '120\n')
+
+    def test_contract_checked_factorial_rejects_negative_input(self):
+        result = compile_pseudocode((ROOT / 'examples/contracts_factorial.pseudo').read_text())
+        out, err, status = compile_and_run(result.c_source, '-1\n')
+        self.assertEqual(out, '')
+        self.assertIn('Precondition failed at pseudocode line 6', err)
+        self.assertEqual(status, 1)
+
+    def test_contracts_guard_dynamic_array_access(self):
+        out, _ = self.run_pseudo((ROOT / 'examples/contracts_array.pseudo').read_text(), '2 42\n')
+        self.assertEqual(out, '42\n')
+
+    def test_contracts_stop_out_of_range_dynamic_array_access(self):
+        result = compile_pseudocode((ROOT / 'examples/contracts_array.pseudo').read_text())
+        out, err, status = compile_and_run(result.c_source, '3 42\n')
+        self.assertEqual(out, '')
+        self.assertIn('Precondition failed at pseudocode line 8', err)
+        self.assertEqual(status, 1)
 
     def test_sum_for_loop_and_read(self):
         out, _ = self.run_pseudo((ROOT / 'examples/sum_for.pseudo').read_text(), '5\n')

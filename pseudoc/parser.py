@@ -114,6 +114,14 @@ class Parser:
             value = self.expression()
             self.consume_line()
             return n.Print(value, t.line)
+        if self.accept('REQUIRE'):
+            condition = self.condition()
+            self.consume_line()
+            return n.Require(condition, t.line)
+        if self.accept('ENSURE'):
+            condition = self.condition()
+            self.consume_line()
+            return n.Ensure(condition, t.line)
         if self.accept('IF'):
             cond = self.condition()
             self.expect('THEN')

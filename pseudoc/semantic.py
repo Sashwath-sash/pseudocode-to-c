@@ -1,5 +1,6 @@
 """Lexically-scoped symbol table and basic static type checking."""
 from dataclasses import dataclass
+import difflib
 import math
 from . import nodes as n
 from .errors import Issue, TranslationError
@@ -34,7 +35,12 @@ class SemanticAnalyzer:
         for scope in reversed(self.scopes):
             if name in scope:
                 return scope[name]
-        self.error(line, f'undeclared identifier {name!r}')
+        visible: dict[str, Symbol] = {}
+        for scope in self.scopes:
+            visible.update(scope)
+        matches = difflib.get_close_matches(name, sorted(visible), n=1, cutoff=0.72)
+        hint = f"; did you mean {matches[0]!r}?" if matches else ''
+        self.error(line, f'undeclared identifier {name!r}{hint}')
         return None
 
     def begin_scope(self, kind: str):
@@ -139,6 +145,61 @@ class SemanticAnalyzer:
         elif left not in ('INTEGER','REAL') or right not in ('INTEGER','REAL'):
             self.error(cond.line, 'comparison requires compatible operands')
 
+    @staticmethod
+    def constant_number(expr: n.Expr) -> int | float | None:
+        """Evaluate a bounded numeric constant expression for contract diagnostics."""
+        integer = SemanticAnalyzer.constant_int(expr)
+        if integer is not None:
+            return integer
+        if isinstance(expr, n.Literal):
+            if expr.kind == 'REAL':
+                value = float(expr.text)
+                return value if math.isfinite(value) else None
+            return None
+        if isinstance(expr, n.Unary):
+            value = SemanticAnalyzer.constant_number(expr.operand)
+            if value is None:
+                return None
+            return value if expr.op == '+' else -value
+        if isinstance(expr, n.Binary):
+            left = SemanticAnalyzer.constant_number(expr.left)
+            right = SemanticAnalyzer.constant_number(expr.right)
+            if left is None or right is None or expr.op not in ('+', '-', '*', '/') or right == 0:
+                return None
+            try:
+                if expr.op == '+': value = left + right
+                elif expr.op == '-': value = left - right
+                elif expr.op == '*': value = left * right
+                else: value = left / right
+            except (ArithmeticError, OverflowError):
+                return None
+            if isinstance(value, float) and not math.isfinite(value):
+                return None
+            if isinstance(value, int) and not (INT_MIN <= value <= INT_MAX):
+                return None
+            return value
+        return None
+
+    @classmethod
+    def constant_condition(cls, cond: n.Condition) -> bool | None:
+        left = cls.constant_number(cond.left)
+        right = cls.constant_number(cond.right)
+        if left is None or right is None:
+            return None
+        return {
+            '<': left < right,
+            '>': left > right,
+            '<=': left <= right,
+            '>=': left >= right,
+            '==': left == right,
+            '!=': left != right,
+        }[cond.op]
+
+    def contract(self, cond: n.Condition, kind: str):
+        self.condition(cond)
+        if self.constant_condition(cond) is False:
+            self.error(cond.line, f'{kind} condition is always false; review the contract')
+
     def statement(self, stmt: n.Stmt):
         if isinstance(stmt, n.Declaration):
             if stmt.name in C_RESERVED or stmt.name.startswith('__') or (len(stmt.name) > 1 and stmt.name[0] == '_' and stmt.name[1].isupper()):
@@ -160,6 +221,10 @@ class SemanticAnalyzer:
             self.place_type(stmt.target)
         elif isinstance(stmt, n.Print):
             self.expr_type(stmt.value)
+        elif isinstance(stmt, n.Require):
+            self.contract(stmt.condition, 'REQUIRE')
+        elif isinstance(stmt, n.Ensure):
+            self.contract(stmt.condition, 'ENSURE')
         elif isinstance(stmt, n.If):
             self.condition(stmt.condition)
             self.block(stmt.yes, 'if')

@@ -47,17 +47,18 @@ Run `./build/review1` on Linux/macOS, or `.\build\review1.exe` in Windows PowerS
 | Area | Implemented behavior |
 | --- | --- |
 | Types | INTEGER, REAL, CHAR; INTEGER-to-REAL widening |
-| Statements | DECLARE, SET, READ, PRINT |
+| Statements | DECLARE, SET, READ, PRINT, REQUIRE, ENSURE |
 | Expressions | Arithmetic, unary signs, parentheses and comparison conditions |
 | Control flow | Nested IF/ELSE, WHILE, inclusive FOR with signed literal STEP |
 | Arrays | Fixed-size, zero-based, one-dimensional arrays |
 | Scope | Block-local declarations and shadowing |
-| Diagnostics | Source locations, declaration/type checks, constant index checks and basic parser recovery |
+| Diagnostics | Source locations, declaration/type checks, constant index checks, similar-name suggestions, constant-false contract checks and basic parser recovery |
+| Contracts | REQUIRE / ENSURE conditions checked statically when constant and at runtime otherwise |
 | Optimization | Bounded integer constant folding and selected integer identities |
 | Optimization validation | Seeded program generation and optimized/unoptimized execution comparison |
 | Inspection | Tokens, AST, symbols, original IR, optimized IR and generated C |
 
-Keywords are case-insensitive; identifiers are case-sensitive. Write one statement per line. See the [language reference](docs/language.md) for exact rules.
+Keywords are case-insensitive; identifiers are case-sensitive. Write one statement per line. REQUIRE checks a precondition at its position; ENSURE checks a postcondition at its position. See the [language reference](docs/language.md) for exact rules.
 
 ## Examples and commands
 
@@ -69,6 +70,9 @@ Keywords are case-insensitive; identifiers are case-sensitive. Write one stateme
 | Real and character values | `python main.py examples/real_char.pseudo --run` | `3.5`, `A` |
 | Descending loop | `python main.py examples/negative_step.pseudo --run` | `3`, `2`, `1` |
 | Invalid source | `python main.py examples/invalid.pseudo` | Diagnostics; exit status 1 |
+| Contract-checked division | `python main.py examples/contracts_division.pseudo --run --input examples/division_valid.txt` | `5` |
+| Failed contract | `python main.py examples/contracts_division.pseudo --run --input examples/division_zero.txt` | Precondition diagnostic; exit status 1 |
+| Contract-checked array access | `python main.py examples/contracts_array.pseudo --run --input examples/array_valid.txt` | `42` |
 
 `--show-all` displays intermediate stages. `--out` chooses the output path; by default it is the source path with a `.c` extension. `--no-optimize` generates C directly from the original IR for comparison.
 
@@ -103,14 +107,14 @@ The backend consumes IR. Loop conditions are reevaluated each iteration; FOR bou
 python -m unittest discover -s tests -v
 ```
 
-**73 tests passed, with no skips**, on Windows using Python 3.13.2 and MinGW GCC 6.3.0. Tests cover translation stages, rejected programs, generated C execution, file handling, reproducible generation, and optimized/unoptimized equivalence against expected outputs. See [validation details](docs/validation.md).
+**83 tests passed, with no skips**, on Windows using Python 3.13.2 and MinGW GCC 6.3.0. Tests cover translation stages, rejected programs, contracts, generated C execution, file handling, reproducible generation, and optimized/unoptimized equivalence against expected outputs. See [validation details](docs/validation.md).
 
 GitHub Actions runs the same suite on Linux with Python 3.10 and 3.13. Without GCC locally, integration tests are explicitly skipped; a frontend-only run is not full execution validation.
 
 ## Scope and remaining work
 
-This is a working educational prototype for a defined language subset. It does not accept arbitrary English. Functions, strings, logical AND/OR, multidimensional arrays, pointers, structures, dynamic allocation, a GUI, an interpreter and machine-code generation are not implemented.
+This is a working educational prototype for a defined language subset. It does not accept arbitrary English. Functions, strings, logical AND/OR, multidimensional arrays, pointers, structures, dynamic allocation, a GUI, an interpreter and machine-code generation are not implemented. Contract conditions use the existing single-comparison grammar; combine checks as separate REQUIRE statements instead of using AND/OR.
 
-Definite-assignment analysis and runtime checks for dynamic array bounds, integer overflow and variable-zero division are unfinished. Input values must fit their declared types, variables must be initialized before use, and array accesses must stay in range. Generated programs otherwise inherit C's undefined behavior. Constant folding avoids out-of-range results but does not make overflowing source programs valid. Very deep expressions or blocks may exceed Python's recursion limit.
+Dynamic array bounds and integer-overflow checks are not automatic. Use REQUIRE statements to guard input-dependent operations such as variable division by zero or array indexing; these checks run where written, so checked values must already be initialized. Division or array access without a suitable guard can still inherit C's undefined behavior. Input values must fit their declared types. Constant folding avoids out-of-range results but does not make overflowing source programs valid. Very deep expressions or blocks may exceed Python's recursion limit.
 
-The [Phase 1 comparison](docs/phase1-alignment.md) separates the report's design from the implemented subset. The [novelty and research note](docs/novelty-and-related-work.md) describes the implemented Phase 2 improvement and its research context. This repository continues the existing Review 1 prototype with validation fixes, regression tests and project documentation.
+The [Phase 1 comparison](docs/phase1-alignment.md) separates the report's design from the implemented subset. See the [runnable examples](docs/examples.md) for contracts, runtime checks and contextual typo suggestions. The [novelty and research note](docs/novelty-and-related-work.md) describes the implemented extensions and their limits. This repository continues the existing Review 1 prototype with validation fixes, regression tests and project documentation.

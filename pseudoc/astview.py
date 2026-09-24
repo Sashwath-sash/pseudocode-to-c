@@ -33,6 +33,10 @@ def render(program: n.Program) -> str:
                 lines.append(f'{p}Read: {expression(s.target)}')
             elif isinstance(s, n.Print):
                 lines.append(f'{p}Print: {expression(s.value)}')
+            elif isinstance(s, n.Require):
+                lines.append(f'{p}Precondition: {condition(s.condition)}')
+            elif isinstance(s, n.Ensure):
+                lines.append(f'{p}Postcondition: {condition(s.condition)}')
             elif isinstance(s, n.If):
                 lines.append(f'{p}If: {condition(s.condition)}')
                 lines.append(f'{p}  THEN:')

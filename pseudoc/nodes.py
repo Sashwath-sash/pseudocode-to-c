@@ -66,6 +66,16 @@ class Print:
     line: int
 
 @dataclass(frozen=True)
+class Require:
+    condition: Condition
+    line: int
+
+@dataclass(frozen=True)
+class Ensure:
+    condition: Condition
+    line: int
+
+@dataclass(frozen=True)
 class If:
     condition: Condition
     yes: tuple[Stmt, ...]
@@ -87,7 +97,7 @@ class For:
     body: tuple[Stmt, ...]
     line: int
 
-Stmt = Declaration | Assignment | Read | Print | If | While | For
+Stmt = Declaration | Assignment | Read | Print | Require | Ensure | If | While | For
 
 @dataclass(frozen=True)
 class Program:

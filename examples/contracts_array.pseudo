@@ -1,0 +1,12 @@
+BEGIN
+DECLARE values[3] AS INTEGER
+DECLARE index AS INTEGER
+DECLARE value AS INTEGER
+READ index
+READ value
+REQUIRE index >= 0
+REQUIRE index < 3
+SET values[index] = value
+ENSURE values[index] == value
+PRINT values[index]
+END

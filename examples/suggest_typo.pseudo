@@ -1,0 +1,5 @@
+BEGIN
+DECLARE total AS INTEGER
+SET totl = 4
+PRINT total
+END

@@ -1,0 +1,12 @@
+BEGIN
+DECLARE dividend AS INTEGER
+DECLARE divisor AS INTEGER
+DECLARE quotient AS INTEGER
+READ dividend
+READ divisor
+REQUIRE divisor != 0
+REQUIRE dividend % divisor == 0
+SET quotient = dividend / divisor
+ENSURE quotient * divisor == dividend
+PRINT quotient
+END
