@@ -18,13 +18,6 @@ python main.py examples/automatic_array_bounds.pseudo --run --input examples/arr
 
 Input `2 42` prints `42`. Try index `3` or `-1` to see the automatic bounds diagnostic. Both array reads and writes are guarded.
 
-```sh
-python main.py examples/read_integer.pseudo --run --input examples/input_not_number.txt
-python main.py examples/read_integer.pseudo --run --input examples/input_int_too_large.txt
-```
-
-Both inputs fail with an INTEGER input diagnostic. The typed input rule also rejects malformed/out-of-range values for other supported types and non-finite REAL values.
-
 `automatic_for_overflow.pseudo` demonstrates a FOR iterator that reaches the maximum signed 32-bit INTEGER value. The loop body prints that value; the compiler-generated check then reports that the next increment would overflow and exits with status 1.
 
 ## Contract-checked division

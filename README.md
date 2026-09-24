@@ -53,7 +53,7 @@ Run `./build/review1` on Linux/macOS, or `.\build\review1.exe` in Windows PowerS
 | Arrays | Fixed-size, zero-based, one-dimensional arrays |
 | Scope | Block-local declarations and shadowing |
 | Diagnostics | Source locations, declaration/type checks, constant index checks, similar-name suggestions, constant-false contract checks and basic parser recovery |
-| Automatic runtime guards | Variable `/` and `%` zero checks, dynamic array bounds, typed input validation and FOR iterator overflow |
+| Automatic runtime guards | Variable `/` and `%` zero checks, dynamic array bounds and FOR iterator overflow |
 | Contracts | Optional REQUIRE / ENSURE conditions checked statically when constant and at runtime otherwise |
 | Optimization | Bounded integer constant folding and selected integer identities |
 | Optimization validation | Seeded program generation and optimized/unoptimized execution comparison |
@@ -76,7 +76,6 @@ Keywords are case-insensitive; identifiers are case-sensitive. Write one stateme
 | Contract-checked array access | `python main.py examples/contracts_array.pseudo --run --input examples/array_valid.txt` | `42` |
 | Automatic division guard (no REQUIRE) | `python main.py examples/automatic_division.pseudo --run --input examples/division_valid.txt` | `5` |
 | Automatic array guard (no REQUIRE) | `python main.py examples/automatic_array_bounds.pseudo --run --input examples/array_valid.txt` | `42` |
-| Invalid typed input | `python main.py examples/read_integer.pseudo --run --input examples/input_not_number.txt` | Diagnostic; exit status 1 |
 
 `--show-all` displays intermediate stages. `--out` chooses the output path; by default it is the source path with a `.c` extension. `--no-optimize` generates C directly from the original IR for comparison.
 
@@ -111,7 +110,7 @@ The backend consumes IR. Loop conditions are reevaluated each iteration; FOR bou
 python -m unittest discover -s tests -v
 ```
 
-The current local suite contains 93 passing tests with no skips on Windows using Python 3.13.2 and MinGW GCC 6.3.0. Tests cover translation stages, rejected programs, automatic runtime guards, contracts, generated C execution, file handling, reproducible generation, and optimized/unoptimized equivalence against expected outputs. See [validation details](docs/validation.md).
+The current local suite contains 91 passing tests with no skips on Windows using Python 3.13.2 and MinGW GCC 6.3.0. Tests cover translation stages, rejected programs, automatic runtime guards, contracts, generated C execution, file handling, reproducible generation, and optimized/unoptimized equivalence against expected outputs. See [validation details](docs/validation.md).
 
 GitHub Actions runs the same suite on Linux with Python 3.10 and 3.13. Without GCC locally, integration tests are explicitly skipped; a frontend-only run is not full execution validation.
 
@@ -119,6 +118,6 @@ GitHub Actions runs the same suite on Linux with Python 3.10 and 3.13. Without G
 
 This is a working educational prototype for a defined language subset. It does not accept arbitrary English. Functions, strings, logical AND/OR, multidimensional arrays, pointers, structures, dynamic allocation, a GUI, an interpreter and machine-code generation are not implemented. Contract conditions use the existing single-comparison grammar; combine checks as separate REQUIRE statements instead of using AND/OR.
 
-The compiler automatically guards variable division/remainder by zero, dynamic array indices, invalid or out-of-range typed input, and overflow of the FOR iterator's next value. These checks require no REQUIRE/ENSURE statements. Explicit contracts remain optional for program-specific conditions. General arithmetic overflow (for example, `x * y` or `x + y`) and uninitialized variables are not automatically detected; very deep expressions or blocks may exceed Python's recursion limit.
+The compiler automatically guards variable division/remainder by zero, dynamic array indices, and overflow of the FOR iterator's next value. These checks require no REQUIRE/ENSURE statements. READ uses direct typed `scanf` conversion without extra input range validation, so inputs should match the declared type and range. Explicit contracts remain optional for program-specific conditions. General arithmetic overflow (for example, `x * y` or `x + y`) and uninitialized variables are not automatically detected; very deep expressions or blocks may exceed Python's recursion limit.
 
 The [Phase 1 comparison](docs/phase1-alignment.md) separates the report's design from the implemented subset. See the [runnable examples](docs/examples.md) for contracts, runtime checks and contextual typo suggestions. The [novelty and research note](docs/novelty-and-related-work.md) describes the implemented extensions and their limits. This repository continues the existing Review 1 prototype with validation fixes, regression tests and project documentation.

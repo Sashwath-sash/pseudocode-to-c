@@ -4,13 +4,13 @@ Local validation on 24 September 2026 used Windows, Python 3.13.2 and MinGW GCC 
 
 ```text
 python -m unittest discover -s tests -v
-Ran 93 tests in 15.167s
+Ran 91 tests in 15.458s
 OK
 ```
 
 There were no failures or skips. Seven execution regressions compile both optimized and unoptimized IR and compare each run with a specified expected output. Another test confirms the optimizer-check generator is deterministic for a given seed and creates compilable input.
 
-Tests check source diagnostics and similar-name suggestions, precedence, nesting, scope, arrays, types, inclusive loops, automatic divisor, bounds, typed-input and FOR-overflow guards, optional pre/postconditions, constant-false contract detection, input/output, constant folding, generated temporary names, and preservation of source/runtime input files. Executable tests compile C with warnings enabled and run with a timeout. Integration tests verify both valid execution and that failed guards stop before unsafe operations.
+Tests check source diagnostics and similar-name suggestions, precedence, nesting, scope, arrays, types, inclusive loops, automatic divisor, bounds and FOR-overflow guards, optional pre/postconditions, constant-false contract detection, input/output, constant folding, generated temporary names, and preservation of source/runtime input files. Executable tests compile C with warnings enabled and run with a timeout. Integration tests verify both valid execution and that failed guards stop before unsafe operations.
 
 ## Reproduce
 

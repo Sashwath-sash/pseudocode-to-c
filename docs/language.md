@@ -56,7 +56,7 @@ The iterator is incremented after every iteration, including the last. Before in
 
 ## Input, output and errors
 
-PRINT emits one value and a newline using `%d`, `%g` or `%c`. READ validates a complete input token against the declared type; integer range errors, malformed values, non-finite REAL values, overlong tokens, non-ASCII CHAR values and end of input produce a source-line diagnostic and status 1. Character input skips leading whitespace. Numeric input tokens are limited to 127 bytes.
+PRINT emits one value and a newline using `%d`, `%g` or `%c`. READ uses direct typed `scanf` conversion (`%d`, `%lf`, or whitespace-skipping `%c`) and reports failed conversion or end of input with a source-line diagnostic. It does not perform separate range or token validation; provide a value that fits the declared type.
 
 Variable `/` and `%` operations have automatic runtime checks for a zero divisor. INTEGER division/remainder also checks the `INT_MIN / -1` overflow case. These guards do not require explicit contracts. General arithmetic overflow, division precision concerns for REAL, and uninitialized variable use are not checked automatically.
 

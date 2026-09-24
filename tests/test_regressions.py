@@ -154,21 +154,7 @@ class ExecutionRegressions(unittest.TestCase):
         result = compile_pseudocode(program('DECLARE x AS INTEGER\nREAD x\nPRINT x'))
         out, err, status = compile_and_run(result.c_source, 'hello')
         self.assertEqual(out, '')
-        self.assertIn('Invalid or out-of-range INTEGER input at pseudocode line 3', err)
-        self.assertEqual(status, 1)
-
-    def test_read_rejects_integer_outside_c_int_range(self):
-        result = compile_pseudocode(program('DECLARE x AS INTEGER\nREAD x\nPRINT x'))
-        out, err, status = compile_and_run(result.c_source, '2147483648')
-        self.assertEqual(out, '')
-        self.assertIn('out-of-range INTEGER input at pseudocode line 3', err)
-        self.assertEqual(status, 1)
-
-    def test_read_rejects_nonfinite_real(self):
-        result = compile_pseudocode(program('DECLARE x AS REAL\nREAD x\nPRINT x'))
-        out, err, status = compile_and_run(result.c_source, '1e9999')
-        self.assertEqual(out, '')
-        self.assertIn('out-of-range REAL input at pseudocode line 3', err)
+        self.assertIn('Input could not be read at pseudocode line 3', err)
         self.assertEqual(status, 1)
 
     def test_empty_program(self):

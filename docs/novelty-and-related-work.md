@@ -2,7 +2,7 @@
 
 ## Automatic rule-based runtime safety checks
 
-Generated C now inserts guards based on the operations and types found in the source, without requiring the pseudocode author to write conditions: variable `/` and `%` divisors are checked for zero (including the `INT_MIN / -1` integer overflow case); dynamic array indices are checked before reads and writes; typed input is validated for conversion, range and supported value constraints; and the next FOR-iterator value is checked before incrementing. A failed check prints a pseudocode line diagnostic and returns status 1. These are targeted rules, not a general proof of program safety: arbitrary INTEGER addition, subtraction or multiplication overflow and uninitialized reads remain unchecked.
+Generated C now inserts guards based on the operations found in the source, without requiring the pseudocode author to write conditions: variable `/` and `%` divisors are checked for zero (including the `INT_MIN / -1` integer overflow case); dynamic array indices are checked before reads and writes; and the next FOR-iterator value is checked before incrementing. A failed check prints a pseudocode line diagnostic and returns status 1. READ uses direct typed conversion without separate input-range checks. These are targeted rules, not a general proof of program safety: arbitrary INTEGER addition, subtraction or multiplication overflow and uninitialized reads remain unchecked.
 
 ## Optional contracts and contextual diagnostic hints
 
