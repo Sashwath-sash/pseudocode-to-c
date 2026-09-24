@@ -1,12 +1,16 @@
 # Phase 2 improvement and related work
 
-## Contract checks and contextual diagnostic hints
+## Automatic rule-based runtime safety checks
+
+Generated C now inserts guards based on the operations and types found in the source, without requiring the pseudocode author to write conditions: variable `/` and `%` divisors are checked for zero (including the `INT_MIN / -1` integer overflow case); dynamic array indices are checked before reads and writes; typed input is validated for conversion, range and supported value constraints; and the next FOR-iterator value is checked before incrementing. A failed check prints a pseudocode line diagnostic and returns status 1. These are targeted rules, not a general proof of program safety: arbitrary INTEGER addition, subtraction or multiplication overflow and uninitialized reads remain unchecked.
+
+## Optional contracts and contextual diagnostic hints
 
 The restricted language now supports `REQUIRE condition` and `ENSURE condition`. These statements check a precondition or postcondition at their source position. Conditions the analyzer can prove false from bounded numeric constants are rejected before C generation; value-dependent conditions become C runtime guards that report the contract kind and pseudocode line, then exit with status 1. Conditions use the language's existing one-comparison grammar, and checks must be placed after values are initialized and before any operation they protect.
 
 For an undeclared name, semantic analysis compares it with identifiers visible in the current lexical scopes and includes a similar-name suggestion when the match is strong enough. The compiler never edits the source automatically. This is a small deterministic heuristic, not machine learning or an intent-recovery system.
 
-Runnable examples cover guarded integer division, a bounded factorial, dynamic array-index guards, and a misspelled identifier suggestion in [docs/examples.md](examples.md). Contracts, runtime assertions and typo hints are established ideas. The project contribution is their implementation within this restricted pseudocode-to-C pipeline; no claim is made that the general ideas are new. Limits include no Boolean AND/OR, no automatic range analysis, no definite-assignment analysis, and no inferred repairs for arbitrary logic errors.
+Runnable examples cover automatic safety checks that need no contract, optional guarded integer division, a bounded factorial, and a misspelled identifier suggestion in [docs/examples.md](examples.md). These checks use explicit rules over known operations rather than generalized dataflow range analysis. Their contribution is a practical extension to this restricted pseudocode-to-C compiler, not a claim that runtime guards or compiler instrumentation are new concepts. Limits include no Boolean AND/OR, no general automatic range analysis, no definite-assignment analysis, and no inferred repairs for arbitrary logic errors.
 
 ## Project contribution
 

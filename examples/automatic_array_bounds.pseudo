@@ -1,0 +1,9 @@
+BEGIN
+DECLARE values[3] AS INTEGER
+DECLARE index AS INTEGER
+DECLARE value AS INTEGER
+READ index
+READ value
+SET values[index] = value
+PRINT values[index]
+END

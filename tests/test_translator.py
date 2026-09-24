@@ -212,6 +212,62 @@ class GCCIntegrationTests(unittest.TestCase):
         self.assertIn('Precondition failed at pseudocode line 8', err)
         self.assertEqual(status, 1)
 
+    def test_variable_division_by_zero_is_guarded_automatically(self):
+        src = program('DECLARE a AS INTEGER\nDECLARE b AS INTEGER\nREAD a\nREAD b\nPRINT a / b')
+        out, err, status = compile_and_run(compile_pseudocode(src).c_source, '10 0')
+        self.assertEqual(out, '')
+        self.assertIn('Division or remainder by zero at pseudocode line 6', err)
+        self.assertEqual(status, 1)
+
+    def test_variable_division_without_written_contract_succeeds(self):
+        src = (ROOT / 'examples/automatic_division.pseudo').read_text()
+        result = compile_pseudocode(src)
+        self.assertNotIn('REQUIRE', src)
+        self.assertNotIn('ENSURE', src)
+        self.assertEqual(compile_and_run(result.c_source, '20 4'), ('5\n', '', 0))
+
+    def test_variable_remainder_by_zero_is_guarded_automatically(self):
+        src = program('DECLARE a AS INTEGER\nDECLARE b AS INTEGER\nREAD a\nREAD b\nPRINT a % b')
+        out, err, status = compile_and_run(compile_pseudocode(src).c_source, '10 0')
+        self.assertEqual(out, '')
+        self.assertIn('Division or remainder by zero at pseudocode line 6', err)
+        self.assertEqual(status, 1)
+
+    def test_integer_min_divided_by_negative_one_is_guarded(self):
+        src = program('DECLARE a AS INTEGER\nDECLARE b AS INTEGER\nREAD a\nREAD b\nPRINT a / b')
+        out, err, status = compile_and_run(compile_pseudocode(src).c_source, '-2147483648 -1')
+        self.assertEqual(out, '')
+        self.assertIn('Integer division/remainder overflow at pseudocode line 6', err)
+        self.assertEqual(status, 1)
+
+    def test_dynamic_array_read_has_automatic_bounds_guard(self):
+        src = program('DECLARE a[3] AS INTEGER\nDECLARE i AS INTEGER\nREAD i\nPRINT a[i]')
+        out, err, status = compile_and_run(compile_pseudocode(src).c_source, '3')
+        self.assertEqual(out, '')
+        self.assertIn('Array index out of bounds at pseudocode line 5', err)
+        self.assertEqual(status, 1)
+
+    def test_dynamic_array_read_and_write_without_written_contract_succeeds(self):
+        src = (ROOT / 'examples/automatic_array_bounds.pseudo').read_text()
+        result = compile_pseudocode(src)
+        self.assertNotIn('REQUIRE', src)
+        self.assertNotIn('ENSURE', src)
+        self.assertEqual(compile_and_run(result.c_source, '2 42'), ('42\n', '', 0))
+
+    def test_dynamic_array_write_has_automatic_bounds_guard(self):
+        src = program('DECLARE a[3] AS INTEGER\nDECLARE i AS INTEGER\nREAD i\nSET a[i] = 42\nPRINT a[0]')
+        out, err, status = compile_and_run(compile_pseudocode(src).c_source, '-1')
+        self.assertEqual(out, '')
+        self.assertIn('Array index out of bounds at pseudocode line 5', err)
+        self.assertEqual(status, 1)
+
+    def test_for_iterator_overflow_is_reported_instead_of_undefined_behavior(self):
+        src = program('DECLARE i AS INTEGER\nFOR i = 2147483647 TO 2147483647 DO\nPRINT i\nENDFOR')
+        out, err, status = compile_and_run(compile_pseudocode(src).c_source)
+        self.assertEqual(out, '2147483647\n')
+        self.assertIn('FOR iterator overflow at pseudocode line 3', err)
+        self.assertEqual(status, 1)
+
     def test_sum_for_loop_and_read(self):
         out, _ = self.run_pseudo((ROOT / 'examples/sum_for.pseudo').read_text(), '5\n')
         self.assertEqual(out, '15\n')

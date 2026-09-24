@@ -1,0 +1,5 @@
+BEGIN
+DECLARE value AS INTEGER
+READ value
+PRINT value
+END

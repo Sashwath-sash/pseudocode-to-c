@@ -4,7 +4,7 @@ Only compiler-created temporary values are propagated. Source variables are neve
 assumed constant, which prevents incorrect transformations across branches/loops.
 """
 from dataclasses import replace
-from .ir import Atom, Block, Let, Declare, Assign, Read, Print, Contract, If, While, For, Place
+from .ir import Atom, Block, Let, Declare, Assign, Read, Print, Contract, BoundsCheck, If, While, For, Place
 from .semantic import INT_MIN, INT_MAX
 
 
@@ -100,6 +100,8 @@ def _sequence(instructions, inherited=None):
             result.append(replace(ins, value=get(ins.value)))
         elif isinstance(ins, Contract):
             result.append(replace(ins, condition=get(ins.condition)))
+        elif isinstance(ins, BoundsCheck):
+            result.append(replace(ins, index=get(ins.index)))
         elif isinstance(ins, If):
             setup, e = _sequence(ins.setup, env)
             cond = e.get(ins.condition.text, ins.condition)

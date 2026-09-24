@@ -1,0 +1,7 @@
+BEGIN
+DECLARE dividend AS INTEGER
+DECLARE divisor AS INTEGER
+READ dividend
+READ divisor
+PRINT dividend / divisor
+END

@@ -5,7 +5,7 @@ The C backend consumes this IR, not the source AST. Blocks preserve source scope
 from __future__ import annotations
 from dataclasses import dataclass
 from . import nodes as n
-from .semantic import Symbol
+from .semantic import Symbol, SemanticAnalyzer
 
 @dataclass(frozen=True)
 class Atom:
@@ -25,6 +25,7 @@ class Let:
     left: Atom
     op: str
     right: Atom | None = None
+    line: int = 0
 
 @dataclass(frozen=True)
 class Declare:
@@ -40,6 +41,7 @@ class Assign:
 @dataclass(frozen=True)
 class Read:
     target: Place
+    line: int = 0
 
 @dataclass(frozen=True)
 class Print:
@@ -49,6 +51,13 @@ class Print:
 class Contract:
     kind: str
     condition: Atom
+    line: int
+
+@dataclass(frozen=True)
+class BoundsCheck:
+    array: str
+    index: Atom
+    size: int
     line: int
 
 @dataclass(frozen=True)
@@ -73,12 +82,13 @@ class For:
     end: Atom
     step: int
     body: Block
+    line: int = 0
 
 @dataclass(frozen=True)
 class Block:
     instructions: tuple[Instruction, ...]
 
-Instruction = Let | Declare | Assign | Read | Print | Contract | If | While | For
+Instruction = Let | Declare | Assign | Read | Print | Contract | BoundsCheck | If | While | For
 
 class IRBuilder:
     def __init__(self, symbols: list[Symbol]):
@@ -109,20 +119,22 @@ class IRBuilder:
         if isinstance(expr, n.ArrayAccess):
             sym = self.lookup(expr.name)
             index = self.expr(expr.index, output)
+            if sym.size is not None and SemanticAnalyzer.constant_int(expr.index) is None:
+                output.append(BoundsCheck(expr.name, index, sym.size, expr.line))
             dest = self.temp(sym.dtype)
-            output.append(Let(dest, Atom(f'{expr.name}[{index.text}]', sym.dtype), 'COPY'))
+            output.append(Let(dest, Atom(f'{expr.name}[{index.text}]', sym.dtype), 'COPY', line=expr.line))
             return dest
         if isinstance(expr, n.Unary):
             value = self.expr(expr.operand, output)
             result = self.temp(value.dtype)
-            output.append(Let(result, value, f'UNARY{expr.op}'))
+            output.append(Let(result, value, f'UNARY{expr.op}', line=expr.line))
             return result
         if isinstance(expr, n.Binary):
             left = self.expr(expr.left, output)
             right = self.expr(expr.right, output)
             dtype = 'REAL' if 'REAL' in (left.dtype, right.dtype) else 'INTEGER'
             dest = self.temp(dtype)
-            output.append(Let(dest, left, expr.op, right))
+            output.append(Let(dest, left, expr.op, right, expr.line))
             return dest
         raise AssertionError('unexpected expression')
 
@@ -130,6 +142,9 @@ class IRBuilder:
         dtype = self.lookup(node.name).dtype
         if isinstance(node, n.ArrayAccess):
             idx = self.expr(node.index, output)
+            sym = self.lookup(node.name)
+            if sym.size is not None and SemanticAnalyzer.constant_int(node.index) is None:
+                output.append(BoundsCheck(node.name, idx, sym.size, node.line))
             return Place(node.name, dtype, idx)
         return Place(node.name, dtype)
 
@@ -137,7 +152,7 @@ class IRBuilder:
         left = self.expr(node.left, setup)
         right = self.expr(node.right, setup)
         result = self.temp('INTEGER')
-        setup.append(Let(result, left, node.op, right))
+        setup.append(Let(result, left, node.op, right, node.line))
         return result
 
     def block(self, source: tuple[n.Stmt, ...]) -> Block:
@@ -157,7 +172,7 @@ class IRBuilder:
             value = self.expr(s.value, out)
             out.append(Assign(target, value))
         elif isinstance(s, n.Read):
-            out.append(Read(self.place(s.target, out)))
+            out.append(Read(self.place(s.target, out), s.line))
         elif isinstance(s, n.Print):
             out.append(Print(self.expr(s.value, out)))
         elif isinstance(s, (n.Require, n.Ensure)):
@@ -187,7 +202,7 @@ class IRBuilder:
                 end_setup.append(Let(end_snapshot, end, 'COPY'))
                 end = end_snapshot
             body = self.block(s.body)
-            out.append(For(s.iterator, tuple(start_setup), start, tuple(end_setup), end, s.step, body))
+            out.append(For(s.iterator, tuple(start_setup), start, tuple(end_setup), end, s.step, body, s.line))
         else:
             raise AssertionError('unexpected statement')
 
@@ -218,6 +233,8 @@ def _render(instr: Instruction, level: int, output: list[str]):
         output.append(f'{pre}{_p(instr.target)} = {instr.value.text}')
     elif isinstance(instr, Read):
         output.append(f'{pre}READ {_p(instr.target)}')
+    elif isinstance(instr, BoundsCheck):
+        output.append(f'{pre}BOUNDS_CHECK {instr.array}[{instr.index.text}] IN 0..{instr.size - 1}  # source line {instr.line}')
     elif isinstance(instr, Print):
         output.append(f'{pre}PRINT {instr.value.text}')
     elif isinstance(instr, Contract):
