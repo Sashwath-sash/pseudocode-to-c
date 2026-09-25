@@ -50,6 +50,10 @@ def render(program: n.Program) -> str:
             elif isinstance(s, n.For):
                 lines.append(f'{p}For: {s.iterator} = {expression(s.start)} TO {expression(s.stop)} STEP {s.step}')
                 block(s.body, depth + 1)
+            elif isinstance(s, n.Break):
+                lines.append(f'{p}Break')
+            elif isinstance(s, n.Continue):
+                lines.append(f'{p}Continue')
 
     block(program.statements, 1)
     return '\n'.join(lines)

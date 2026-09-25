@@ -44,6 +44,7 @@ def generate_case(seed: int, case_index: int) -> str:
     expressions = [
         f"{a} + {b}", f"{a} - {b}", f"{a} * {b}", f"{a} / {b}", f"{a} % {b}",
         f"(-{a})", f"(+{b})", "x + 0", "0 + x", "x - 0", "x * 1", "1 * x", "x / 1",
+        f"{a} & {b}", f"{a} | {b}", f"{a} ^ {b}", f"~{a}", f"{a} << 2", f"{a} >> 2",
         f"((x + {a}) * (y - {b}))", f"(({a} + {b}) * ({a} - {b}))",
     ]
     expressions.extend(_expression(rng, 2) for _ in range(8))

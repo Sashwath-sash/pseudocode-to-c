@@ -37,6 +37,7 @@ class Declare:
 class Assign:
     target: Place
     value: Atom
+    line: int = 0
 
 @dataclass(frozen=True)
 class Read:
@@ -85,10 +86,18 @@ class For:
     line: int = 0
 
 @dataclass(frozen=True)
+class Break:
+    pass
+
+@dataclass(frozen=True)
+class Continue:
+    pass
+
+@dataclass(frozen=True)
 class Block:
     instructions: tuple[Instruction, ...]
 
-Instruction = Let | Declare | Assign | Read | Print | Contract | BoundsCheck | If | While | For
+Instruction = Let | Declare | Assign | Read | Print | Contract | BoundsCheck | If | While | For | Break | Continue
 
 class IRBuilder:
     def __init__(self, symbols: list[Symbol]):
@@ -170,7 +179,7 @@ class IRBuilder:
         elif isinstance(s, n.Assignment):
             target = self.place(s.target, out)
             value = self.expr(s.value, out)
-            out.append(Assign(target, value))
+            out.append(Assign(target, value, s.line))
         elif isinstance(s, n.Read):
             out.append(Read(self.place(s.target, out), s.line))
         elif isinstance(s, n.Print):
@@ -203,6 +212,10 @@ class IRBuilder:
                 end = end_snapshot
             body = self.block(s.body)
             out.append(For(s.iterator, tuple(start_setup), start, tuple(end_setup), end, s.step, body, s.line))
+        elif isinstance(s, n.Break):
+            out.append(Break())
+        elif isinstance(s, n.Continue):
+            out.append(Continue())
         else:
             raise AssertionError('unexpected statement')
 
@@ -267,6 +280,10 @@ def _render(instr: Instruction, level: int, output: list[str]):
         for step in instr.body.instructions:
             _render(step, level+1, output)
         output.append(f'{pre}ENDFOR')
+    elif isinstance(instr, Break):
+        output.append(f'{pre}BREAK')
+    elif isinstance(instr, Continue):
+        output.append(f'{pre}CONTINUE')
 
 
 def render(block: Block) -> str:

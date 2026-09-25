@@ -33,6 +33,14 @@ def _fold(op: str, a: int, b: int) -> int | None:
         elif op == '>=': val = int(a >= b)
         elif op == '==': val = int(a == b)
         elif op == '!=': val = int(a != b)
+        elif op == '&': val = a & b
+        elif op == '|': val = a | b
+        elif op == '^': val = a ^ b
+        elif op in ('<<', '>>'):
+            if not 0 <= b < 32: return None
+            unsigned = a & 0xFFFFFFFF
+            shifted = ((unsigned << b) & 0xFFFFFFFF) if op == '<<' else (unsigned >> b)
+            val = shifted if shifted < 0x80000000 else shifted - 0x100000000
         else: return None
         return val if INT_MIN <= val <= INT_MAX else None
     except (OverflowError, ZeroDivisionError):
@@ -74,6 +82,10 @@ def _sequence(instructions, inherited=None):
                         substitute = Atom(str(val), 'INTEGER', True)
                 elif ins.op == 'UNARY+':
                     substitute = a
+            elif ins.op == 'UNARY~':
+                av = _int(a)
+                if av is not None:
+                    substitute = Atom(str(~av), 'INTEGER', True)
             elif b is not None:
                 av, bv = _int(a), _int(b)
                 if av is not None and bv is not None and ins.target.dtype == 'INTEGER':

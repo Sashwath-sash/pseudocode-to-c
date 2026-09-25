@@ -2,6 +2,18 @@
 
 Run these from the project root. Each `--out` path keeps generated C under `build/`.
 
+## Phase 2 language additions
+
+`phase2_features.pseudo` assigns a STRING, uses CONTINUE and BREAK in an inclusive FOR loop, combines integer masks with `|`, and extracts bits with `&`.
+
+```sh
+python main.py examples/phase2_features.pseudo --show-all
+```
+
+This command displays the compiler stages and generated C without executing the generated program.
+
+Strings are fixed-buffer values up to 255 ASCII characters. Input reads one whitespace-delimited token; arrays of strings, concatenation and Unicode text are not supported. Bitwise operators require INTEGER values. A shift count outside the target unsigned integer width stops with a diagnostic. BREAK and CONTINUE must be inside a loop.
+
 ## Automatic safety checks (no written conditions required)
 
 The compiler inserts checks from the operations in the pseudocode. These examples contain no `REQUIRE` or `ENSURE` statements.

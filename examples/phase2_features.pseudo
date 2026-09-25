@@ -1,0 +1,22 @@
+BEGIN
+DECLARE student AS STRING
+DECLARE mask AS INTEGER
+DECLARE i AS INTEGER
+SET student = "Mira"
+SET mask = 0
+FOR i = 1 TO 5 DO
+    IF i == 2 THEN
+        CONTINUE
+    ENDIF
+    IF i == 5 THEN
+        BREAK
+    ENDIF
+    SET mask = mask | i
+ENDFOR
+PRINT "Student:"
+PRINT student
+PRINT "Combined mask:"
+PRINT mask
+PRINT "Lowest two bits:"
+PRINT mask & 3
+END

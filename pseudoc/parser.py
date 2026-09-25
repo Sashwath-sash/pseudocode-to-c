@@ -5,7 +5,7 @@ from . import nodes as n
 
 CLOSERS = frozenset({'END', 'ELSE', 'ENDIF', 'ENDWHILE', 'ENDFOR'})
 REL_OPS = frozenset({'<','>','<=','>=','==','!='})
-TYPE_KINDS = frozenset({'INTEGER','REAL','CHAR'})
+TYPE_KINDS = frozenset({'INTEGER','REAL','CHAR','STRING'})
 
 class Parser:
     def __init__(self, tokens: list[Token]):
@@ -95,7 +95,7 @@ class Parser:
                 self.expect(']')
             self.expect('AS')
             if self.cur.kind not in TYPE_KINDS:
-                self.fail('expected INTEGER, REAL, or CHAR after AS')
+                self.fail('expected INTEGER, REAL, CHAR, or STRING after AS')
             dtype = self.cur.kind
             self.i += 1
             self.consume_line()
@@ -160,6 +160,12 @@ class Parser:
             self.expect('ENDFOR')
             self.consume_line()
             return n.For(iterator, start, stop, step, tuple(body), t.line)
+        if self.accept('BREAK'):
+            self.consume_line()
+            return n.Break(t.line)
+        if self.accept('CONTINUE'):
+            self.consume_line()
+            return n.Continue(t.line)
         self.fail(f'unknown statement beginning with {t.kind} {t.text!r}')
 
     def place(self) -> n.Place:
@@ -181,6 +187,38 @@ class Parser:
         return n.Condition(left, op, right, line)
 
     def expression(self) -> n.Expr:
+        expr = self.bit_xor()
+        while self.at('|'):
+            op, line = self.cur.kind, self.cur.line
+            self.i += 1
+            expr = n.Binary(expr, op, self.bit_xor(), line)
+        return expr
+
+    def bit_xor(self) -> n.Expr:
+        expr = self.bit_and()
+        while self.at('^'):
+            op, line = self.cur.kind, self.cur.line
+            self.i += 1
+            expr = n.Binary(expr, op, self.bit_and(), line)
+        return expr
+
+    def bit_and(self) -> n.Expr:
+        expr = self.shift()
+        while self.at('&'):
+            op, line = self.cur.kind, self.cur.line
+            self.i += 1
+            expr = n.Binary(expr, op, self.shift(), line)
+        return expr
+
+    def shift(self) -> n.Expr:
+        expr = self.additive()
+        while self.at('<<', '>>'):
+            op, line = self.cur.kind, self.cur.line
+            self.i += 1
+            expr = n.Binary(expr, op, self.additive(), line)
+        return expr
+
+    def additive(self) -> n.Expr:
         expr = self.term()
         while self.at('+', '-'):
             op = self.cur.kind
@@ -200,7 +238,7 @@ class Parser:
 
     def factor(self) -> n.Expr:
         tok = self.cur
-        if self.at('+', '-'):
+        if self.at('+', '-', '~'):
             self.i += 1
             return n.Unary(tok.kind, self.factor(), tok.line)
         if self.accept('('):
@@ -213,6 +251,8 @@ class Parser:
             return n.Literal(tok.text, 'REAL', tok.line)
         if self.accept('CHAR_LITERAL'):
             return n.Literal(tok.text, 'CHAR', tok.line)
+        if self.accept('STRING_LITERAL'):
+            return n.Literal(tok.text, 'STRING', tok.line)
         if self.at('IDENT'):
             return self.place()
         self.fail(f'expected expression, found {tok.kind} {tok.text!r}')

@@ -14,7 +14,7 @@ Runnable examples cover automatic safety checks that need no contract, optional 
 
 ## Project contribution
 
-The project adds a repeatable, optimization-focused differential check for its pseudocode compiler. A seeded generator creates valid, bounded programs containing expressions that exercise the current integer constant-folding and identity rules, along with branches and short loops. The harness translates each input twice, compiles both generated C programs with GCC, runs them, and compares standard output, standard error and exit status. A mismatch prints the seed, case number and pseudocode so the example can be reproduced.
+The project adds a repeatable, optimization-focused differential check for its pseudocode compiler. A seeded generator creates valid, bounded programs containing expressions that exercise the current integer constant-folding, bitwise-folding and identity rules, along with branches and short loops. The harness translates each input twice, compiles both generated C programs with GCC, runs them, and compares standard output, standard error and exit status. A mismatch prints the seed, case number and pseudocode so the example can be reproduced.
 
 This makes it easier to check whether the current optimizer changes a program's observed behavior as its rules evolve. It extends the project's existing hand-written examples and tests with generated cases aimed at the implemented optimization patterns.
 
@@ -30,7 +30,7 @@ The implementation is a small educational adaptation of the testing idea: its ge
 
 ## Initial result
 
-With seed `20260923`, 30 generated programs produced 60 optimized/unoptimized executions. All observed outputs, errors and exit statuses matched. This is a preliminary result for the included generator and local compiler setup. Broader seeds, more cases, additional compiler versions and careful handling of C undefined behavior are needed before drawing stronger conclusions.
+With seed `20260925`, 30 generated programs produced 60 optimized/unoptimized executions. All observed outputs, errors and exit statuses matched. This result applies to the included generator and local compiler setup; it does not establish correctness for all inputs or compiler environments.
 
 ## Accurate novelty statement
 

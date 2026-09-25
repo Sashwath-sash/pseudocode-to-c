@@ -23,6 +23,7 @@ class BoundaryTests(unittest.TestCase):
         self.assertEqual(first, generate_case(20260923, 4))
         self.assertNotEqual(first, generate_case(20260923, 5))
         self.assertIn('x * 1', first)
+        self.assertIn('^', first)
         self.assertIn('STEP +1', first)
         compile_pseudocode(first)
 

@@ -40,6 +40,41 @@ class FrontendTests(unittest.TestCase):
         c = compile_pseudocode(program('DECLARE x AS INTEGER\nSET x = (2 + 3) * 4\nPRINT x')).c_source
         self.assertIn('x = 20;', c)
 
+    def test_bitwise_precedence_and_ast(self):
+        result = compile_pseudocode(program('PRINT 1 + 2 << 2 | 1'))
+        self.assertIn('(1 + 2) << 2', render_ast(result.ast))
+        self.assertIn('<<', result.ir_text())
+
+    def test_rejects_real_bitwise_operands(self):
+        with self.assertRaisesRegex(TranslationError, 'requires two INTEGER operands'):
+            compile_pseudocode(program('PRINT 1.5 & 1'))
+
+    def test_rejects_string_arrays(self):
+        with self.assertRaisesRegex(TranslationError, 'STRING arrays are not supported'):
+            compile_pseudocode(program('DECLARE words[2] AS STRING'))
+
+    def test_rejects_loop_control_outside_loop(self):
+        for keyword in ('BREAK', 'CONTINUE'):
+            with self.subTest(keyword=keyword), self.assertRaisesRegex(TranslationError, f'{keyword} must be inside a loop'):
+                compile_pseudocode(program(keyword))
+
+    def test_while_array_condition_keeps_bounds_check_inside_each_iteration(self):
+        src = program('DECLARE values[2] AS INTEGER\nDECLARE i AS INTEGER\nSET i = 0\nWHILE values[i] < 1 DO\nSET i = i + 1\nENDWHILE')
+        result = compile_pseudocode(src)
+        loop = result.c_source.index('while (1) {')
+        bounds = result.c_source.index('Array index out of bounds', loop)
+        condition_check = result.c_source.index('if (!(t', bounds)
+        self.assertLess(loop, bounds)
+        self.assertLess(bounds, condition_check)
+
+    def test_string_longer_than_buffer_is_rejected(self):
+        with self.assertRaisesRegex(TranslationError, 'at most 255 characters'):
+            compile_pseudocode(program('DECLARE text AS STRING\nSET text = "' + ('a' * 256) + '"'))
+
+    def test_string_rejects_embedded_nul_escape(self):
+        with self.assertRaisesRegex(TranslationError, 'unsupported string escape'):
+            compile_pseudocode(program('PRINT "a\\0b"'))
+
     def test_syntax_recovery_collects_multiple_errors(self):
         src = program('DECLARE a AS INTEGER\nSET a =\nPRINT\nSET a = 1')
         with self.assertRaises(TranslationError) as context:
@@ -171,6 +206,65 @@ class GCCIntegrationTests(unittest.TestCase):
     def test_review1_sample(self):
         out, _ = self.run_pseudo((ROOT / 'examples/review1.pseudo').read_text())
         self.assertEqual(out, '5\n')
+
+    def test_phase2_feature_example(self):
+        out, _ = self.run_pseudo((ROOT / 'examples/phase2_features.pseudo').read_text())
+        self.assertEqual(out, 'Student:\nMira\nCombined mask:\n7\nLowest two bits:\n3\n')
+
+    def test_simple_while_comparison_is_in_c_header(self):
+        src = program('DECLARE i AS INTEGER\nDECLARE limit AS INTEGER\nSET i = 0\nWHILE i < limit DO\nSET i = i + 1\nENDWHILE')
+        result = compile_pseudocode(src)
+        self.assertIn('while ((i < limit)) {', result.c_source)
+        self.assertNotIn('while (1) {', result.c_source)
+
+    def test_strings_read_assign_compare_and_print(self):
+        src = program('DECLARE first AS STRING\nDECLARE copy AS STRING\nREAD first\nSET copy = first\nIF copy == "hello" THEN\nPRINT copy\nELSE\nPRINT "different"\nENDIF')
+        for enabled in (True, False):
+            with self.subTest(optimized=enabled):
+                result = compile_pseudocode(src, optimize_ir=enabled)
+                self.assertEqual(compile_and_run(result.c_source, 'hello world'), ('hello\n', '', 0))
+                self.assertIn('strcmp(', result.c_source)
+
+    def test_string_escape_prints_newline(self):
+        out, _ = self.run_pseudo(program('PRINT "first\\nsecond"'))
+        self.assertEqual(out, 'first\nsecond\n')
+
+    def test_string_input_capacity_is_checked(self):
+        src = program('DECLARE word AS STRING\nREAD word\nPRINT word')
+        result = compile_pseudocode(src)
+        out, err, status = compile_and_run(result.c_source, 'x' * 256)
+        self.assertEqual(out, '')
+        self.assertIn('STRING input too long at pseudocode line 3', err)
+        self.assertEqual(status, 1)
+
+    def test_bitwise_operators_and_shifts(self):
+        src = program('PRINT 6 & 3\nPRINT 6 | 3\nPRINT 6 ^ 3\nPRINT ~0\nPRINT 3 << 2\nPRINT 12 >> 2')
+        for enabled in (True, False):
+            with self.subTest(optimized=enabled):
+                result = compile_pseudocode(src, optimize_ir=enabled)
+                self.assertEqual(compile_and_run(result.c_source), ('2\n7\n5\n-1\n12\n3\n', '', 0))
+
+    def test_variable_shift_count_guard(self):
+        src = program('DECLARE count AS INTEGER\nREAD count\nPRINT 1 << count')
+        out, err, status = compile_and_run(compile_pseudocode(src).c_source, '32')
+        self.assertEqual(out, '')
+        self.assertIn('Invalid shift count at pseudocode line 4', err)
+        self.assertEqual(status, 1)
+
+    def test_break_and_continue_in_for_advance_iterator(self):
+        src = program('DECLARE i AS INTEGER\nFOR i = 1 TO 6 DO\nIF i == 2 THEN\nCONTINUE\nENDIF\nIF i == 5 THEN\nBREAK\nENDIF\nPRINT i\nENDFOR')
+        out, _ = self.run_pseudo(src)
+        self.assertEqual(out, '1\n3\n4\n')
+
+    def test_break_and_continue_in_while(self):
+        src = program('DECLARE i AS INTEGER\nSET i = 0\nWHILE i < 6 DO\nSET i = i + 1\nIF i == 2 THEN\nCONTINUE\nENDIF\nIF i == 5 THEN\nBREAK\nENDIF\nPRINT i\nENDWHILE')
+        out, _ = self.run_pseudo(src)
+        self.assertEqual(out, '1\n3\n4\n')
+
+    def test_continue_targets_inner_loop(self):
+        src = program('DECLARE i AS INTEGER\nDECLARE j AS INTEGER\nFOR i = 1 TO 2 DO\nFOR j = 1 TO 3 DO\nIF j == 2 THEN\nCONTINUE\nENDIF\nPRINT j\nENDFOR\nENDFOR')
+        out, _ = self.run_pseudo(src)
+        self.assertEqual(out, '1\n3\n1\n3\n')
 
     def test_contract_checked_division_valid_input(self):
         src = (ROOT / 'examples/contracts_division.pseudo').read_text()

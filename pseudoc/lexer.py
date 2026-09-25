@@ -4,8 +4,29 @@ import ast
 import re
 from .errors import Issue, TranslationError
 
-KEYWORDS = frozenset('BEGIN END DECLARE AS SET READ PRINT REQUIRE ENSURE IF THEN ELSE ENDIF WHILE DO ENDWHILE FOR TO STEP ENDFOR INTEGER REAL CHAR'.split())
-TOKEN_RE = re.compile(r'[A-Za-z_][A-Za-z_0-9]*|[0-9]+\.[0-9]+|[0-9]+|<=|>=|==|!=|[+*/%\-<>=()\[\]]')
+KEYWORDS = frozenset('BEGIN END DECLARE AS SET READ PRINT REQUIRE ENSURE IF THEN ELSE ENDIF WHILE DO ENDWHILE FOR TO STEP ENDFOR BREAK CONTINUE INTEGER REAL CHAR STRING'.split())
+TOKEN_RE = re.compile(r'[A-Za-z_][A-Za-z_0-9]*|[0-9]+\.[0-9]+|[0-9]+|<=|>=|==|!=|<<|>>|[+*/%\-<>=()\[\]&|^~]')
+
+_STRING_ESCAPES = frozenset({'n', 't', 'r', '0', '\\', '"', "'"})
+
+
+def _quoted_token(line: str, start: int, quote: str, line_no: int) -> tuple[str, int]:
+    i = start + 1
+    while i < len(line):
+        if line[i] == '\\':
+            if (i + 1 >= len(line) or line[i + 1] not in _STRING_ESCAPES
+                    or (quote == '"' and line[i + 1] == '0')):
+                message = 'unsupported C character escape' if quote == "'" else 'unsupported string escape'
+                raise TranslationError(Issue('Lexical', message, line_no, i + 1))
+            i += 2
+        elif line[i] == quote:
+            i += 1
+            return line[start:i], i
+        elif ord(line[i]) > 127:
+            raise TranslationError(Issue('Lexical', 'string and character literals must use ASCII characters', line_no, i + 1))
+        else:
+            i += 1
+    raise TranslationError(Issue('Lexical', 'unterminated quoted literal', line_no, start + 1))
 
 @dataclass(frozen=True)
 class Token:
@@ -30,16 +51,7 @@ def tokenize(source: str) -> list[Token]:
                 break
             if ch == "'":
                 start = i
-                i += 1
-                while i < len(line):
-                    if line[i] == '\\':
-                        i += 2
-                        continue
-                    if line[i] == "'":
-                        i += 1
-                        break
-                    i += 1
-                word = line[start:i]
+                word, i = _quoted_token(line, start, "'", line_no)
                 # Accept only portable single-character C escapes; Python has
                 # escapes (e.g. \uXXXX) that are not C character-literal syntax.
                 if '\\' in word and (len(word) != 4 or word[1] != '\\' or word[2] not in ('n', 't', 'r', '0', '\\', "'", '"')):
@@ -51,6 +63,11 @@ def tokenize(source: str) -> list[Token]:
                 except (ValueError, SyntaxError, UnicodeError) as exc:
                     raise TranslationError(Issue('Lexical', f'invalid character literal {word!r}: {exc}', line_no, start + 1)) from exc
                 tokens.append(Token('CHAR_LITERAL', word, line_no, start + 1))
+                continue
+            if ch == '"':
+                start = i
+                word, i = _quoted_token(line, start, '"', line_no)
+                tokens.append(Token('STRING_LITERAL', word, line_no, start + 1))
                 continue
             match = TOKEN_RE.match(line, i)
             if not match:

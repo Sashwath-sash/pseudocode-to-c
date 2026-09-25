@@ -97,7 +97,15 @@ class For:
     body: tuple[Stmt, ...]
     line: int
 
-Stmt = Declaration | Assignment | Read | Print | Require | Ensure | If | While | For
+@dataclass(frozen=True)
+class Break:
+    line: int
+
+@dataclass(frozen=True)
+class Continue:
+    line: int
+
+Stmt = Declaration | Assignment | Read | Print | Require | Ensure | If | While | For | Break | Continue
 
 @dataclass(frozen=True)
 class Program:

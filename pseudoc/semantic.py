@@ -1,11 +1,13 @@
 """Lexically-scoped symbol table and basic static type checking."""
 from dataclasses import dataclass
+import ast
 import difflib
 import math
 from . import nodes as n
 from .errors import Issue, TranslationError
 
 INT_MIN, INT_MAX = -(2**31), 2**31 - 1
+STRING_CAPACITY = 256
 # These spellings must not become C identifiers or hide functions emitted by the backend.
 C_RESERVED = frozenset(('auto break case char const continue default do double else enum '
     'extern float for goto if inline int long register restrict return short signed '
@@ -27,6 +29,7 @@ class SemanticAnalyzer:
         self.symbols: list[Symbol] = []
         self.issues: list[Issue] = []
         self.counter = 0
+        self.loop_depth = 0
 
     def error(self, line: int, message: str):
         self.issues.append(Issue('Semantic', message, line))
@@ -86,7 +89,7 @@ class SemanticAnalyzer:
             value = SemanticAnalyzer.constant_int(expr.operand)
             if value is None:
                 return None
-            val = -value if expr.op == '-' else value
+            val = -value if expr.op == '-' else (~value if expr.op == '~' else value)
             return val if INT_MIN <= val <= INT_MAX else None
         if isinstance(expr, n.Binary):
             left = SemanticAnalyzer.constant_int(expr.left)
@@ -96,6 +99,13 @@ class SemanticAnalyzer:
             if expr.op == '+': val = left + right
             elif expr.op == '-': val = left - right
             elif expr.op == '*': val = left * right
+            elif expr.op == '&': val = left & right
+            elif expr.op == '|': val = left | right
+            elif expr.op == '^': val = left ^ right
+            elif expr.op in ('<<', '>>') and 0 <= right < 32:
+                unsigned = left & 0xFFFFFFFF
+                result = ((unsigned << right) & 0xFFFFFFFF) if expr.op == '<<' else (unsigned >> right)
+                val = result if result < 0x80000000 else result - 0x100000000
             elif expr.op in ('/', '%') and right != 0:
                 quotient = abs(left) // abs(right) * (1 if (left >= 0) == (right >= 0) else -1)
                 val = quotient if expr.op == '/' else left - quotient * right
@@ -109,12 +119,16 @@ class SemanticAnalyzer:
                 self.error(expr.line, 'REAL literal exceeds supported finite double range')
             if expr.kind == 'INTEGER' and int(expr.text) > INT_MAX:
                 self.error(expr.line, 'integer literal exceeds supported 32-bit C int range')
+            if expr.kind == 'STRING' and len(ast.literal_eval(expr.text).encode('ascii')) >= STRING_CAPACITY:
+                self.error(expr.line, f'STRING values may contain at most {STRING_CAPACITY - 1} characters')
             return expr.kind
         if isinstance(expr, (n.Variable, n.ArrayAccess)):
             return self.place_type(expr)
         if isinstance(expr, n.Unary):
             dtype = self.expr_type(expr.operand)
-            if dtype not in (None, 'INTEGER', 'REAL'):
+            if expr.op == '~' and dtype not in (None, 'INTEGER'):
+                self.error(expr.line, 'bitwise complement ~ requires an INTEGER operand')
+            elif expr.op != '~' and dtype not in (None, 'INTEGER', 'REAL'):
                 self.error(expr.line, 'unary +/- requires a numeric operand')
             return dtype
         assert isinstance(expr, n.Binary)
@@ -122,6 +136,10 @@ class SemanticAnalyzer:
         rtype = self.expr_type(expr.right)
         if ltype is None or rtype is None:
             return None
+        if expr.op in ('&', '|', '^', '<<', '>>'):
+            if ltype != 'INTEGER' or rtype != 'INTEGER':
+                self.error(expr.line, f'bitwise operator {expr.op} requires two INTEGER operands')
+            return 'INTEGER'
         if ltype not in ('INTEGER','REAL') or rtype not in ('INTEGER','REAL'):
             self.error(expr.line, f'operator {expr.op} requires numeric operands')
             return None
@@ -139,7 +157,10 @@ class SemanticAnalyzer:
         right = self.expr_type(cond.right)
         if left is None or right is None:
             return
-        if left == 'CHAR' or right == 'CHAR':
+        if left == 'STRING' or right == 'STRING':
+            if left != 'STRING' or right != 'STRING' or cond.op not in ('==','!='):
+                self.error(cond.line, 'STRING comparisons support == and != between STRING values')
+        elif left == 'CHAR' or right == 'CHAR':
             if left != 'CHAR' or right != 'CHAR' or cond.op not in ('==','!='):
                 self.error(cond.line, 'CHAR comparisons require CHAR == CHAR or CHAR != CHAR')
         elif left not in ('INTEGER','REAL') or right not in ('INTEGER','REAL'):
@@ -208,6 +229,8 @@ class SemanticAnalyzer:
                 self.error(stmt.line, f'duplicate declaration of {stmt.name!r} in same scope')
             elif stmt.size is not None and (stmt.size <= 0 or stmt.size > 100000):
                 self.error(stmt.line, 'array size must be between 1 and 100000')
+            elif stmt.size is not None and stmt.dtype == 'STRING':
+                self.error(stmt.line, 'STRING arrays are not supported')
             else:
                 sym = Symbol(stmt.name, stmt.dtype, stmt.size, self.scope_names[-1], stmt.line)
                 self.scopes[-1][stmt.name] = sym
@@ -232,7 +255,9 @@ class SemanticAnalyzer:
                 self.block(stmt.no, 'else')
         elif isinstance(stmt, n.While):
             self.condition(stmt.condition)
+            self.loop_depth += 1
             self.block(stmt.body, 'while')
+            self.loop_depth -= 1
         elif isinstance(stmt, n.For):
             iterator = self.lookup(stmt.iterator, stmt.line)
             if iterator is not None and (iterator.dtype != 'INTEGER' or iterator.size is not None):
@@ -245,7 +270,13 @@ class SemanticAnalyzer:
                 self.error(stmt.line, 'FOR STEP cannot be zero')
             if not (INT_MIN <= stmt.step <= INT_MAX):
                 self.error(stmt.line, 'FOR STEP exceeds supported 32-bit integer range')
+            self.loop_depth += 1
             self.block(stmt.body, 'for')
+            self.loop_depth -= 1
+        elif isinstance(stmt, (n.Break, n.Continue)):
+            if self.loop_depth == 0:
+                keyword = 'BREAK' if isinstance(stmt, n.Break) else 'CONTINUE'
+                self.error(stmt.line, f'{keyword} must be inside a loop')
 
     def analyze(self, program: n.Program) -> list[Symbol]:
         for stmt in program.statements:
