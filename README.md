@@ -84,6 +84,8 @@ Run `python main.py --fuzz-optimizer --cases 30 --seed 20260925` to generate bou
 
 For a live demonstration, run `python main.py --interactive`, enter the pseudocode line by line, and finish with `END`. Interactive mode automatically displays the source, tokens, AST, symbol table, original IR, optimized IR, and generated C.
 
+For copy-ready Review 2 commands and a short explanation, see the [live demo sheet](docs/review2-demo.md).
+
 `--run` captures output and supplies the contents of `--input` as standard input. Without `--input`, standard input is empty; this mode does not prompt interactively. Compile and launch the C program separately for interactive input. Compilation and execution each have a three-second timeout.
 
 ## How it works
