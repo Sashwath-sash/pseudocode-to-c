@@ -18,8 +18,46 @@ class CGenerator:
         self.lines.append('    ' * self.depth + line)
 
     def _block(self, block: Block):
-        for ins in block.instructions:
+        instructions = block.instructions
+        i = 0
+        while i < len(instructions):
+            ins = instructions[i]
+            following = instructions[i + 1] if i + 1 < len(instructions) else None
+            if isinstance(ins, Let) and ins.op not in ('/', '%', '<<', '>>'):
+                expr = self._plain_expr(ins)
+                if isinstance(following, Assign) and following.value.text == ins.target.text:
+                    if following.target.dtype != 'STRING':
+                        self.emit(f'{self._place(following.target)} = {expr};')
+                        i += 2
+                        continue
+                if isinstance(following, Print) and following.value.text == ins.target.text:
+                    self.emit(f'printf("{FMT_OUT[following.value.dtype]}", {expr});')
+                    i += 2
+                    continue
             self._instruction(ins)
+            i += 1
+
+    @staticmethod
+    def _plain_expr(ins: Let) -> str:
+        if ins.op == 'COPY':
+            return ins.left.text
+        if ins.op.startswith('UNARY'):
+            return f'({ins.op[-1]}{ins.left.text})'
+        if ins.left.dtype == 'STRING' and ins.op in ('==', '!='):
+            return f'(strcmp({ins.left.text}, {ins.right.text}) {ins.op} 0)'
+        return f'({ins.left.text} {ins.op} {ins.right.text})'
+
+    @staticmethod
+    def _continues_current_loop(block: Block) -> bool:
+        for ins in block.instructions:
+            if isinstance(ins, Continue):
+                return True
+            if isinstance(ins, If) and (
+                CGenerator._continues_current_loop(ins.yes)
+                or (ins.no is not None and CGenerator._continues_current_loop(ins.no))
+            ):
+                return True
+        return False
 
     def _uses_strings(self, block: Block) -> bool:
         for ins in block.instructions:
@@ -70,8 +108,8 @@ class CGenerator:
         }:
             return None
         if condition.left.dtype == 'STRING':
-            return f'(strcmp({condition.left.text}, {condition.right.text}) {condition.op} 0)'
-        return f'({condition.left.text} {condition.op} {condition.right.text})'
+            return f'strcmp({condition.left.text}, {condition.right.text}) {condition.op} 0'
+        return f'{condition.left.text} {condition.op} {condition.right.text}'
 
     def _instruction(self, ins):
         if isinstance(ins, Declare):
@@ -163,8 +201,11 @@ class CGenerator:
             self.depth -= 1
             self.emit('}')
         elif isinstance(ins, If):
-            self._block(Block(ins.setup))
-            self.emit(f'if ({ins.condition.text}) {{')
+            condition = self._simple_while_condition(ins)
+            if condition is None:
+                self._block(Block(ins.setup))
+                condition = ins.condition.text
+            self.emit(f'if ({condition}) {{')
             self.depth += 1
             self._block(ins.yes)
             self.depth -= 1
@@ -210,21 +251,20 @@ class CGenerator:
             self.emit(f'{ins.iterator} = {ins.start.text};')
             self.emit(f'while ({ins.iterator} {op} {ins.end.text}) {{')
             self.depth += 1
-            self.for_count += 1
-            next_value = f'__pseudoc_for_next_{self.for_count}'
-            continue_label = f'__pseudoc_for_continue_{self.for_count}'
+            continue_label = None
+            if self._continues_current_loop(ins.body):
+                self.for_count += 1
+                continue_label = f'__pseudoc_for_continue_{self.for_count}'
             self.loop_continue_labels.append(continue_label)
             self._block(ins.body)
             self.loop_continue_labels.pop()
-            self.emit(f'{continue_label}: ;')
-            self.emit(f'long long {next_value} = (long long){ins.iterator} + ({ins.step});')
-            self.emit(f'if ({next_value} < INT_MIN || {next_value} > INT_MAX) {{')
-            self.depth += 1
-            self.emit(f'fprintf(stderr, "FOR iterator overflow at pseudocode line {ins.line}\\n");')
-            self.emit('return 1;')
-            self.depth -= 1
-            self.emit('}')
-            self.emit(f'{ins.iterator} = (int){next_value};')
+            if continue_label is not None:
+                self.emit(f'{continue_label}: ;')
+            # Stop after the final included value, including INT_MAX/INT_MIN,
+            # without overflowing the C iterator on the next increment.
+            beyond = '>' if ins.step > 0 else '<'
+            self.emit(f'if ((long long){ins.iterator} + ({ins.step}) {beyond} {ins.end.text}) break;')
+            self.emit(f'{ins.iterator} += {ins.step};')
             self.depth -= 1
             self.emit('}')
             self.depth -= 1
@@ -243,6 +283,8 @@ class CGenerator:
         if self._uses_strings(block):
             self.lines.insert(2, '#include <string.h>')
         self._block(block)
+        if not any('INT_MIN' in line or 'INT_MAX' in line or 'CHAR_BIT' in line for line in self.lines):
+            self.lines.remove('#include <limits.h>')
         self.emit('return 0;')
         self.lines.append('}')
         return '\n'.join(self.lines) + '\n'

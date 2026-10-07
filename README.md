@@ -53,7 +53,7 @@ Run `./build/review1` on Linux/macOS, or `.\build\review1.exe` in Windows PowerS
 | Arrays | Fixed-size, zero-based, one-dimensional arrays |
 | Scope | Block-local declarations and shadowing |
 | Diagnostics | Source locations, declaration/type checks, constant index checks, similar-name suggestions, constant-false contract checks and basic parser recovery |
-| Automatic runtime guards | Variable `/` and `%` zero checks, dynamic array bounds, FOR iterator overflow, shift-count and STRING-input length checks |
+| Automatic runtime guards | Variable `/` and `%` zero checks, dynamic array bounds, shift-count and STRING-input length checks; FOR loops stop before an increment would pass their bound |
 | Contracts | Optional REQUIRE / ENSURE conditions checked statically when constant and at runtime otherwise |
 | Optimization | Bounded integer constant folding and selected integer identities |
 | Optimization validation | Seeded program generation and optimized/unoptimized execution comparison |

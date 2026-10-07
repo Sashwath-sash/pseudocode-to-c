@@ -208,13 +208,22 @@ class GCCIntegrationTests(unittest.TestCase):
         self.assertEqual(out, '5\n')
 
     def test_phase2_feature_example(self):
-        out, _ = self.run_pseudo((ROOT / 'examples/phase2_features.pseudo').read_text())
+        out, result = self.run_pseudo((ROOT / 'examples/phase2_features.pseudo').read_text())
         self.assertEqual(out, 'Student:\nMira\nCombined mask:\n7\nLowest two bits:\n3\n')
+        self.assertIn('if (i == 2) {', result.c_source)
+        self.assertIn('mask = (mask | i);', result.c_source)
+        self.assertIn('__pseudoc_for_continue_1:', result.c_source)
+
+    def test_plain_for_loop_uses_no_unused_continue_label(self):
+        out, result = self.run_pseudo((ROOT / 'examples/sum_for.pseudo').read_text(), '5\n')
+        self.assertEqual(out, '15\n')
+        self.assertNotIn('__pseudoc_for_continue_', result.c_source)
+        self.assertIn('sum = (sum + i);', result.c_source)
 
     def test_simple_while_comparison_is_in_c_header(self):
         src = program('DECLARE i AS INTEGER\nDECLARE limit AS INTEGER\nSET i = 0\nWHILE i < limit DO\nSET i = i + 1\nENDWHILE')
         result = compile_pseudocode(src)
-        self.assertIn('while ((i < limit)) {', result.c_source)
+        self.assertIn('while (i < limit) {', result.c_source)
         self.assertNotIn('while (1) {', result.c_source)
 
     def test_strings_read_assign_compare_and_print(self):
@@ -355,12 +364,12 @@ class GCCIntegrationTests(unittest.TestCase):
         self.assertIn('Array index out of bounds at pseudocode line 5', err)
         self.assertEqual(status, 1)
 
-    def test_for_iterator_overflow_is_reported_instead_of_undefined_behavior(self):
+    def test_for_loop_finishes_at_integer_max_without_overflow(self):
         src = program('DECLARE i AS INTEGER\nFOR i = 2147483647 TO 2147483647 DO\nPRINT i\nENDFOR')
         out, err, status = compile_and_run(compile_pseudocode(src).c_source)
         self.assertEqual(out, '2147483647\n')
-        self.assertIn('FOR iterator overflow at pseudocode line 3', err)
-        self.assertEqual(status, 1)
+        self.assertEqual(err, '')
+        self.assertEqual(status, 0)
 
     def test_sum_for_loop_and_read(self):
         out, _ = self.run_pseudo((ROOT / 'examples/sum_for.pseudo').read_text(), '5\n')
