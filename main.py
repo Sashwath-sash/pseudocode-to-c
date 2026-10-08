@@ -36,6 +36,23 @@ def compile_and_run(c_code: str, user_input: str = '', timeout: int = 3) -> tupl
         return run.stdout, run.stderr, run.returncode
 
 
+def read_clipboard() -> str:
+    """Read pasted source as text without CMD altering its line breaks."""
+    if os.name != 'nt':
+        raise RuntimeError('--clipboard is available on Windows only')
+    try:
+        result = subprocess.run(
+            ['powershell.exe', '-NoProfile', '-Command',
+             '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-Clipboard -Raw'],
+            capture_output=True, text=True, encoding='utf-8', timeout=5,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError('clipboard could not be read in time') from exc
+    if result.returncode or not result.stdout.strip():
+        raise RuntimeError('clipboard has no pseudocode text; copy the code block and try again')
+    return result.stdout
+
+
 def cli(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description='Compiler-based restricted pseudocode to C translator')
     ap.add_argument('source', type=Path, nargs='?', help='pseudocode .pseudo source file')
@@ -44,6 +61,7 @@ def cli(argv: list[str] | None = None) -> int:
     ap.add_argument('--run', action='store_true', help='compile with GCC and run locally (3-second timeout)')
     ap.add_argument('--no-optimize', action='store_true', help='generate C from the original IR for comparison')
     ap.add_argument('--interactive', action='store_true', help='type pseudocode line by line; finish with END')
+    ap.add_argument('--clipboard', action='store_true', help='translate multiline pseudocode copied to the Windows clipboard')
     ap.add_argument('--input', type=Path, help='optional UTF-8 stdin text file, for --run')
     ap.add_argument('--fuzz-optimizer', action='store_true', help='generate programs and compare optimized and unoptimized executions')
     ap.add_argument('--cases', type=int, default=50, help='number of generated programs for --fuzz-optimizer (default: 50)')
@@ -60,6 +78,8 @@ def cli(argv: list[str] | None = None) -> int:
                 return 1
             print("All optimized and unoptimized outputs matched.")
             return 0
+        if args.clipboard and (args.source or args.interactive):
+            raise RuntimeError('use --clipboard by itself, without a source file or --interactive')
         if args.interactive:
             print('Enter pseudocode one line at a time. Type END on its own line to compile:')
             lines = []
@@ -69,10 +89,12 @@ def cli(argv: list[str] | None = None) -> int:
                 if line.strip().upper() == 'END':
                     break
             source = '\n'.join(lines) + '\n'
+        elif args.clipboard:
+            source = read_clipboard()
         elif args.source:
             source = args.source.read_text(encoding='utf-8')
         else:
-            raise RuntimeError('provide a .pseudo source file or use --interactive')
+            raise RuntimeError('provide a .pseudo source file, --interactive, or --clipboard')
         result = compile_pseudocode(source, optimize_ir=not args.no_optimize)
         target = args.out or (args.source.with_suffix('.c') if args.source else None)
         if target is not None and args.source and target.resolve() == args.source.resolve():
@@ -84,7 +106,7 @@ def cli(argv: list[str] | None = None) -> int:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(result.c_source, encoding='utf-8')
             print(f'Generated C: {target}')
-        show_stages = args.show_all or args.interactive
+        show_stages = args.show_all or args.interactive or args.clipboard
         if show_stages:
             print('\n=== SOURCE PSEUDOCODE ===')
             print(source, end='')

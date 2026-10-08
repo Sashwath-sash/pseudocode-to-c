@@ -4,10 +4,9 @@ Open Command Prompt and run:
 
 ```bat
 cd /d "%USERPROFILE%\Desktop\Pseudocode-to-C"
-python main.py --interactive
 ```
 
-Type these lines, pressing Enter after each. The translator starts when you enter `END`:
+Copy this entire pseudocode block:
 
 ```text
 BEGIN
@@ -17,7 +16,9 @@ PRINT x
 END
 ```
 
-Point out the source, tokens, AST, symbol table, original IR, optimized IR, and generated C. In this example, the optimizer folds `2 + 3` to `5`, and the C contains `printf` for the result. Interactive mode translates; it does not run the generated C.
+Then run `python main.py --clipboard`. It reads the copied text directly and preserves line breaks and indentation. Do not paste a multiline block into `--interactive` in the old Windows Command Prompt; that console can join lines together. Use `python main.py --interactive` only when typing one line at a time.
+
+Point out the source, tokens, AST, symbol table, original IR, optimized IR, and generated C. In this example, the optimizer folds `2 + 3` to `5`, and the C contains `printf` for the result. The clipboard command translates; it does not run the generated C.
 
 To show the Phase 2 additions without typing a long program:
 

@@ -123,6 +123,15 @@ class CLITests(unittest.TestCase):
             self.assertIn(f'=== {label} ===', out)
         self.assertIn('x = 5;', out)
 
+    def test_clipboard_preserves_multiline_source_and_displays_stages(self):
+        copied = 'BEGIN\r\nDECLARE x AS INTEGER\r\nSET x = 2 + 3\r\nPRINT x\r\nEND\r\n'
+        with patch('main.read_clipboard', return_value=copied):
+            code, out, err = self.invoke(['--clipboard'])
+        self.assertEqual((code, err), (0, ''))
+        self.assertIn('DECLARE x AS INTEGER', out)
+        self.assertIn('=== GENERATED C ===', out)
+        self.assertIn('x = 5;', out)
+
 
 @unittest.skipUnless(shutil.which('gcc'), 'GCC is required')
 class ExecutionRegressions(unittest.TestCase):
