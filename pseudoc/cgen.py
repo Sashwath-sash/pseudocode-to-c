@@ -12,7 +12,6 @@ class CGenerator:
         self.depth = 1
         self.for_count = 0
         self.string_read_count = 0
-        self.loop_continue_labels: list[str | None] = []
 
     def emit(self, line: str):
         self.lines.append('    ' * self.depth + line)
@@ -48,13 +47,18 @@ class CGenerator:
         return f'({ins.left.text} {ins.op} {ins.right.text})'
 
     @staticmethod
-    def _continues_current_loop(block: Block) -> bool:
+    def _writes_iterator(block: Block, iterator: str) -> bool:
         for ins in block.instructions:
-            if isinstance(ins, Continue):
+            if isinstance(ins, (Assign, Read)) and ins.target.name == iterator:
                 return True
             if isinstance(ins, If) and (
-                CGenerator._continues_current_loop(ins.yes)
-                or (ins.no is not None and CGenerator._continues_current_loop(ins.no))
+                CGenerator._writes_iterator(ins.yes, iterator)
+                or (ins.no is not None and CGenerator._writes_iterator(ins.no, iterator))
+            ):
+                return True
+            if isinstance(ins, (While, For)) and (
+                isinstance(ins, For) and ins.iterator == iterator
+                or CGenerator._writes_iterator(ins.body, iterator)
             ):
                 return True
         return False
@@ -224,9 +228,7 @@ class CGenerator:
                 # while header, so C reevaluates it after every iteration.
                 self.emit(f'while ({condition}) {{')
                 self.depth += 1
-                self.loop_continue_labels.append(None)
                 self._block(ins.body)
-                self.loop_continue_labels.pop()
                 self.depth -= 1
                 self.emit('}')
             else:
@@ -234,48 +236,51 @@ class CGenerator:
                 # need temporaries or runtime checks; they must be repeated.
                 self.emit('while (1) {')
                 self.depth += 1
-                self.loop_continue_labels.append(None)
                 self._block(Block(ins.setup))
                 self.emit(f'if (!({ins.condition.text})) break;')
                 self._block(ins.body)
-                self.loop_continue_labels.pop()
                 self.depth -= 1
                 self.emit('}')
         elif isinstance(ins, For):
-            # Group start/end temporary declarations into the loop's own scope.
-            self.emit('{')
-            self.depth += 1
+            op = '<=' if ins.step > 0 else '>='
+            end = int(ins.end.text) if ins.end.literal else None
+            direct = (end is not None and -2147483648 <= end + ins.step <= 2147483647
+                      and not self._writes_iterator(ins.body, ins.iterator))
+            # Keep setup temporaries local only when the loop needs them.
+            scoped = bool(ins.start_setup or ins.end_setup or not direct)
+            if scoped:
+                self.emit('{')
+                self.depth += 1
             self._block(Block(ins.start_setup))
             self._block(Block(ins.end_setup))
-            op = '<=' if ins.step > 0 else '>='
-            self.emit(f'{ins.iterator} = {ins.start.text};')
-            self.emit(f'while ({ins.iterator} {op} {ins.end.text}) {{')
-            self.depth += 1
-            continue_label = None
-            if self._continues_current_loop(ins.body):
+            if direct:
+                update = (f'{ins.iterator}++' if ins.step == 1 else
+                          f'{ins.iterator}--' if ins.step == -1 else
+                          f'{ins.iterator} += {ins.step}')
+                self.emit(f'for ({ins.iterator} = {ins.start.text}; {ins.iterator} {op} {ins.end.text}; {update}) {{')
+            else:
+                # A wider control value avoids C int overflow at extreme bounds;
+                # deriving the next value from the source iterator preserves edits
+                # made to that iterator inside the loop body.
                 self.for_count += 1
-                continue_label = f'__pseudoc_for_continue_{self.for_count}'
-            self.loop_continue_labels.append(continue_label)
+                next_name = f'__pseudoc_for_next_{self.for_count}'
+                self.emit(f'{ins.iterator} = {ins.start.text};')
+                self.emit(f'for (long long {next_name} = {ins.iterator}; {next_name} {op} {ins.end.text}; '
+                          f'{next_name} = (long long){ins.iterator} + ({ins.step})) {{')
+                self.depth += 1
+                self.emit(f'{ins.iterator} = (int){next_name};')
+                self.depth -= 1
+            self.depth += 1
             self._block(ins.body)
-            self.loop_continue_labels.pop()
-            if continue_label is not None:
-                self.emit(f'{continue_label}: ;')
-            # Stop after the final included value, including INT_MAX/INT_MIN,
-            # without overflowing the C iterator on the next increment.
-            beyond = '>' if ins.step > 0 else '<'
-            self.emit(f'if ((long long){ins.iterator} + ({ins.step}) {beyond} {ins.end.text}) break;')
-            self.emit(f'{ins.iterator} += {ins.step};')
             self.depth -= 1
             self.emit('}')
-            self.depth -= 1
-            self.emit('}')
+            if scoped:
+                self.depth -= 1
+                self.emit('}')
         elif isinstance(ins, Break):
             self.emit('break;')
         elif isinstance(ins, Continue):
-            if self.loop_continue_labels and self.loop_continue_labels[-1] is not None:
-                self.emit(f'goto {self.loop_continue_labels[-1]};')
-            else:
-                self.emit('continue;')
+            self.emit('continue;')
         else:
             raise AssertionError(f'unknown IR instruction {ins}')
 

@@ -212,13 +212,22 @@ class GCCIntegrationTests(unittest.TestCase):
         self.assertEqual(out, 'Student:\nMira\nCombined mask:\n7\nLowest two bits:\n3\n')
         self.assertIn('if (i == 2) {', result.c_source)
         self.assertIn('mask = (mask | i);', result.c_source)
-        self.assertIn('__pseudoc_for_continue_1:', result.c_source)
+        self.assertIn('for (i = 1; i <= 5; i++) {', result.c_source)
+        self.assertIn('continue;', result.c_source)
+        self.assertNotIn('goto ', result.c_source)
 
     def test_plain_for_loop_uses_no_unused_continue_label(self):
         out, result = self.run_pseudo((ROOT / 'examples/sum_for.pseudo').read_text(), '5\n')
         self.assertEqual(out, '15\n')
         self.assertNotIn('__pseudoc_for_continue_', result.c_source)
         self.assertIn('sum = (sum + i);', result.c_source)
+
+    def test_for_with_modified_iterator_uses_safe_c_for_loop(self):
+        src = program('DECLARE i AS INTEGER\nFOR i = 1 TO 5 DO\nPRINT i\nSET i = i + 1\nENDFOR')
+        out, result = self.run_pseudo(src)
+        self.assertEqual(out, '1\n3\n5\n')
+        self.assertIn('for (long long ', result.c_source)
+        self.assertNotIn('goto ', result.c_source)
 
     def test_simple_while_comparison_is_in_c_header(self):
         src = program('DECLARE i AS INTEGER\nDECLARE limit AS INTEGER\nSET i = 0\nWHILE i < limit DO\nSET i = i + 1\nENDWHILE')

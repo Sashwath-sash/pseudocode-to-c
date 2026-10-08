@@ -61,7 +61,7 @@ A direct scalar `WHILE` comparison is placed in the generated C `while` header. 
 
 WHILE reevaluates its condition before each iteration. FOR requires an already-declared scalar INTEGER iterator and INTEGER start/end expressions. Bounds are evaluated before assigning the iterator, and the end is snapshotted even if the body changes its source variable. The end is inclusive. STEP defaults to 1 and must be a nonzero signed integer literal. Positive steps count upward and negative steps downward.
 
-The iterator is incremented after every iteration, including the last. Before incrementing, generated C checks whether the next value fits the target C `int`; overflow produces a runtime diagnostic and status 1 instead of signed-overflow behavior. Assignment to the iterator in the body affects subsequent iterations. Other INTEGER arithmetic is not generally overflow-checked.
+Generated C uses a `for` loop. For a fixed bound whose next increment fits C `int` and whose body does not modify the iterator, it uses the declared iterator directly. Dynamic or extreme bounds, and loops that modify the iterator in their body, use a widened control value so the next step cannot overflow C `int`. Assignment to the iterator in the body affects subsequent iterations. The iterator's value after the loop is not specified by this language subset. Other INTEGER arithmetic is not generally overflow-checked.
 
 BREAK exits the nearest WHILE or FOR loop. CONTINUE skips the rest of the current iteration and tests the loop condition again. In a FOR loop, generated C advances the iterator before starting the next iteration. BREAK and CONTINUE outside a loop are semantic errors.
 

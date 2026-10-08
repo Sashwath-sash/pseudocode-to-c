@@ -53,7 +53,7 @@ Run `./build/review1` on Linux/macOS, or `.\build\review1.exe` in Windows PowerS
 | Arrays | Fixed-size, zero-based, one-dimensional arrays |
 | Scope | Block-local declarations and shadowing |
 | Diagnostics | Source locations, declaration/type checks, constant index checks, similar-name suggestions, constant-false contract checks and basic parser recovery |
-| Automatic runtime guards | Variable `/` and `%` zero checks, dynamic array bounds, shift-count and STRING-input length checks; FOR loops stop before an increment would pass their bound |
+| Automatic runtime guards | Variable `/` and `%` zero checks, dynamic array bounds, shift-count and STRING-input length checks; widened FOR control handles extreme bounds safely |
 | Contracts | Optional REQUIRE / ENSURE conditions checked statically when constant and at runtime otherwise |
 | Optimization | Bounded integer constant folding and selected integer identities |
 | Optimization validation | Seeded program generation and optimized/unoptimized execution comparison |
@@ -127,6 +127,6 @@ This is a working educational prototype for a defined language subset. It does n
 
 INTEGER bitwise operators `&`, `|`, `^`, `~`, `<<`, and `>>` are supported. Shift counts are checked before the C operation. BREAK and CONTINUE must appear inside a loop; CONTINUE in a FOR loop still runs its iterator update.
 
-The compiler automatically guards variable division/remainder by zero, dynamic array indices, and overflow of the FOR iterator's next value. These checks require no REQUIRE/ENSURE statements. READ uses direct typed `scanf` conversion without extra input range validation, so inputs should match the declared type and range. Explicit contracts remain optional for program-specific conditions. General arithmetic overflow (for example, `x * y` or `x + y`) and uninitialized variables are not automatically detected; very deep expressions or blocks may exceed Python's recursion limit.
+The compiler automatically guards variable division/remainder by zero and dynamic array indices. FOR loops with dynamic or extreme bounds use a widened control value to avoid iterator overflow. These protections require no REQUIRE/ENSURE statements. READ uses direct typed `scanf` conversion without extra input range validation, so inputs should match the declared type and range. Explicit contracts remain optional for program-specific conditions. General arithmetic overflow (for example, `x * y` or `x + y`) and uninitialized variables are not automatically detected; very deep expressions or blocks may exceed Python's recursion limit.
 
 The [Phase 1 comparison](docs/phase1-alignment.md) separates the report's design from the implemented subset. See the [runnable examples](docs/examples.md) for contracts, runtime checks and contextual typo suggestions. The [novelty and research note](docs/novelty-and-related-work.md) describes the implemented extensions and their limits. This repository continues the existing Review 1 prototype with validation fixes, regression tests and project documentation.

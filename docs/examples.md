@@ -30,7 +30,7 @@ python main.py examples/automatic_array_bounds.pseudo --run --input examples/arr
 
 Input `2 42` prints `42`. Try index `3` or `-1` to see the automatic bounds diagnostic. Both array reads and writes are guarded.
 
-`automatic_for_overflow.pseudo` demonstrates a FOR iterator that reaches the maximum signed 32-bit INTEGER value. The loop body prints that value; the compiler-generated check then reports that the next increment would overflow and exits with status 1.
+`for_integer_max.pseudo` demonstrates a FOR iterator that reaches the maximum signed 32-bit INTEGER value. The generated C uses a widened loop-control value, prints `2147483647`, and exits successfully.
 
 ## Contract-checked division
 
