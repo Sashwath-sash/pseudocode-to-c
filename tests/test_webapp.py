@@ -46,6 +46,21 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("x = 5;", data["stages"]["c"])
         self.assertIn("t1 = 2 + 3", data["stages"]["ir"])
+        tree = data["ast_tree"]
+        self.assertEqual(tree["kind"], "Program")
+        assignment = tree["children"][1]["node"]
+        self.assertEqual(assignment["kind"], "Assignment")
+        self.assertEqual(assignment["children"][1]["node"]["kind"], "Binary")
+        self.assertEqual(assignment["children"][1]["node"]["detail"], "+")
+
+    def test_examples_come_from_existing_project_files(self):
+        with urlopen(self.base + "/api/examples", timeout=5) as response:
+            data = json.load(response)
+        examples = {item["id"]: item for item in data["examples"]}
+        self.assertIn("review1", examples)
+        self.assertIn("automatic_division", examples)
+        self.assertIn("DECLARE x AS INTEGER", examples["review1"]["source"])
+        self.assertEqual(examples["automatic_division"]["input"], "20 4")
 
     def test_source_error_is_reported_without_c(self):
         status, data = self.post({"source": "BEGIN\nSET y = 3\nEND"})

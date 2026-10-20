@@ -69,22 +69,20 @@
 
       <section id="workspace" class="workspace-section" aria-labelledby="workspace-title">
         <div class="section-heading">
-          <div><p class="eyebrow">01 / EXPLORE</p><h2 id="workspace-title">The compiler workspace</h2><p>Enter a complete program, translate it, then open any stage on the right.</p></div>
+          <div><p class="eyebrow">01 / EXPLORE</p><h2 id="workspace-title">The compiler workspace</h2><p>Write your own pseudocode or open a program already in the project. Every stage comes from the same compiler.</p></div>
           <div class="workspace-hint"><span class="hint-key">Ctrl</span> + <span class="hint-key">Enter</span> to translate</div>
         </div>
         <div class="workspace-grid">
           <div class="panel editor-panel">
             <div class="panel-bar"><span><span class="panel-icon cyan">{ }</span> Source editor</span><span class="panel-meta">restricted pseudocode</span></div>
-            <div class="editor-toolbar">
-              <label for="example-select">Load example</label>
-              <select id="example-select" aria-label="Load example">
-                <option value="arithmetic">Arithmetic and optimization</option>
-                <option value="branch">IF / ELSE</option>
-                <option value="loop">FOR and CONTINUE</option>
-                <option value="stringBits">STRING and bitwise</option>
-                <option value="division">Automatic division guard</option>
-                <option value="array">Automatic array guard</option>
-              </select>
+            <div class="source-choice" role="group" aria-label="Choose pseudocode source">
+              <button id="custom-mode" class="choice-button" type="button" aria-pressed="false"><span class="choice-icon">✎</span> Write my own</button>
+              <button id="examples-mode" class="choice-button" type="button" aria-pressed="true"><span class="choice-icon">▤</span> Project examples</button>
+            </div>
+            <div id="example-picker" class="editor-toolbar">
+              <label for="example-select">Choose a saved example</label>
+              <select id="example-select" aria-label="Choose a saved project example"><option value="">Loading project examples…</option></select>
+              <span id="example-file" class="example-file"></span>
             </div>
             <label class="sr-only" for="source">Pseudocode source</label>
             <div class="editor-wrap"><div id="line-numbers" class="line-numbers" aria-hidden="true"></div><textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-describedby="source-help"></textarea></div>
@@ -107,8 +105,9 @@
               <button type="button" role="tab" data-stage="c" aria-selected="true">C code</button>
               <button type="button" role="tab" data-stage="output">Run output</button>
             </div>
-            <div class="result-topline"><span id="stage-name">Generated C</span><div><button id="copy-btn" class="text-button" type="button" disabled>Copy</button><button id="download-btn" class="text-button" type="button" disabled>Download C</button></div></div>
+            <div class="result-topline"><span id="stage-name">Generated C</span><div><button id="expand-tree" class="text-button" type="button" hidden>Expand all</button><button id="collapse-tree" class="text-button" type="button" hidden>Collapse all</button><button id="copy-btn" class="text-button" type="button" disabled>Copy</button><button id="download-btn" class="text-button" type="button" disabled>Download C</button></div></div>
             <pre id="result" class="result-code" role="tabpanel" tabindex="0">Choose an example or write your own program, then select “Translate to C”.</pre>
+            <div id="ast-tree" class="result-tree" role="tabpanel" aria-label="Visual abstract syntax tree" tabindex="0" hidden></div>
             <div id="diagnostic" class="diagnostic" role="alert" hidden></div>
           </div>
         </div>

@@ -16,10 +16,46 @@ from main import compile_and_run  # noqa: E402
 from pseudoc.astview import render as render_ast  # noqa: E402
 from pseudoc.compiler import compile_pseudocode  # noqa: E402
 from pseudoc.errors import TranslationError  # noqa: E402
+from webapp.ast_tree import program as render_ast_tree  # noqa: E402
 
 MAX_REQUEST_BYTES = 256_000
 MAX_SOURCE_CHARS = 40_000
 MAX_INPUT_CHARS = 4_000
+EXAMPLE_DIR = ROOT / "examples"
+EXAMPLE_INPUTS = {
+    "sum_for": "input5.txt",
+    "contracts_division": "division_valid.txt",
+    "automatic_division": "division_valid.txt",
+    "contracts_array": "array_valid.txt",
+    "automatic_array_bounds": "array_valid.txt",
+}
+EXAMPLE_NAMES = {
+    "review1": "Arithmetic (Review 1)",
+    "sum_for": "Read and sum with FOR",
+    "phase2_features": "STRING, bitwise and loop control",
+    "automatic_division": "Automatic division guard",
+    "automatic_array_bounds": "Automatic array bounds guard",
+    "invalid": "Invalid source and diagnostics",
+}
+FEATURED = ("review1", "sum_for", "phase2_features", "automatic_division",
+            "automatic_array_bounds", "invalid")
+
+
+def project_examples() -> list[dict]:
+    files = {path.stem: path for path in EXAMPLE_DIR.glob("*.pseudo")}
+    order = [name for name in FEATURED if name in files]
+    order.extend(sorted(set(files) - set(order)))
+    examples = []
+    for name in order:
+        input_file = EXAMPLE_INPUTS.get(name)
+        examples.append({
+            "id": name,
+            "name": EXAMPLE_NAMES.get(name, name.replace("_", " ").title()),
+            "source": files[name].read_text(encoding="utf-8"),
+            "input": (EXAMPLE_DIR / input_file).read_text(encoding="utf-8").strip()
+            if input_file else "",
+        })
+    return examples
 
 
 def compile_request(payload: object) -> tuple[int, dict]:
@@ -53,7 +89,8 @@ def compile_request(payload: object) -> tuple[int, dict]:
         "optimized_ir": result.optimized_ir_text(),
         "c": result.c_source,
     }
-    response = {"stages": stages, "execution": None}
+    response = {"stages": stages, "ast_tree": render_ast_tree(result.ast),
+                "execution": None}
     if run:
         try:
             stdout, stderr, returncode = compile_and_run(result.c_source, user_input)
@@ -70,6 +107,12 @@ def compile_request(payload: object) -> tuple[int, dict]:
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC), **kwargs)
+
+    def do_GET(self) -> None:
+        if self.path == "/api/examples":
+            self.send_json(200, {"examples": project_examples()})
+            return
+        super().do_GET()
 
     def do_POST(self) -> None:
         if self.path != "/api/compile":

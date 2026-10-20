@@ -1,67 +1,6 @@
-const examples = {
-  arithmetic: {
-    source: `BEGIN
-DECLARE x AS INTEGER
-SET x = 2 + 3
-PRINT x
-END`, input: ""
-  },
-  branch: {
-    source: `BEGIN
-DECLARE mark AS INTEGER
-SET mark = 72
-IF mark >= 50 THEN
-    PRINT "Pass"
-ELSE
-    PRINT "Fail"
-ENDIF
-END`, input: ""
-  },
-  loop: {
-    source: `BEGIN
-DECLARE total AS INTEGER
-DECLARE i AS INTEGER
-SET total = 0
-FOR i = 1 TO 4 DO
-    IF i == 2 THEN
-        CONTINUE
-    ENDIF
-    SET total = total + i
-ENDFOR
-PRINT total
-END`, input: ""
-  },
-  stringBits: {
-    source: `BEGIN
-DECLARE name AS STRING
-DECLARE bits AS INTEGER
-SET name = "Mira"
-SET bits = 5 & 3
-PRINT name
-PRINT bits
-END`, input: ""
-  },
-  division: {
-    source: `BEGIN
-DECLARE dividend AS INTEGER
-DECLARE divisor AS INTEGER
-READ dividend
-READ divisor
-PRINT dividend / divisor
-END`, input: "20 0"
-  },
-  array: {
-    source: `BEGIN
-DECLARE values[3] AS INTEGER
-DECLARE index AS INTEGER
-DECLARE value AS INTEGER
-READ index
-READ value
-SET values[index] = value
-PRINT values[index]
-END`, input: "3 42"
-  }
-};
+let examples = [];
+let sourceMode = "examples";
+let customDraft = "BEGIN\n\nEND";
 
 const stageLabels = {
   tokens: "Tokens and source positions",
@@ -76,8 +15,15 @@ const stageLabels = {
 const source = document.querySelector("#source");
 const programInput = document.querySelector("#program-input");
 const exampleSelect = document.querySelector("#example-select");
+const exampleFile = document.querySelector("#example-file");
+const examplePicker = document.querySelector("#example-picker");
+const customModeButton = document.querySelector("#custom-mode");
+const examplesModeButton = document.querySelector("#examples-mode");
 const lineNumbers = document.querySelector("#line-numbers");
 const result = document.querySelector("#result");
+const astTree = document.querySelector("#ast-tree");
+const expandTreeButton = document.querySelector("#expand-tree");
+const collapseTreeButton = document.querySelector("#collapse-tree");
 const status = document.querySelector("#status");
 const stageName = document.querySelector("#stage-name");
 const diagnostic = document.querySelector("#diagnostic");
@@ -95,12 +41,58 @@ function updateLines() {
   lineNumbers.scrollTop = source.scrollTop;
 }
 
+function setSourceMode(mode) {
+  sourceMode = mode;
+  customModeButton.setAttribute("aria-pressed", String(mode === "custom"));
+  examplesModeButton.setAttribute("aria-pressed", String(mode === "examples"));
+  examplePicker.hidden = mode !== "examples";
+}
+
+function invalidateCompilation() {
+  compilation = null;
+  showDiagnostic("");
+  setStatus("Edit ready");
+  selectStage(activeStage);
+}
+
 function selectExample(key, focus = true) {
-  const example = examples[key];
+  const example = examples.find(item => item.id === key);
+  if (!example) return;
+  if (sourceMode === "custom") customDraft = source.value;
+  setSourceMode("examples");
+  exampleSelect.value = key;
+  exampleFile.textContent = `examples/${key}.pseudo`;
   source.value = example.source;
   programInput.value = example.input;
   updateLines();
+  source.setSelectionRange(0, 0);
   if (focus) source.focus();
+  source.scrollTop = 0;
+  lineNumbers.scrollTop = 0;
+  invalidateCompilation();
+}
+
+async function loadExamples() {
+  try {
+    const response = await fetch("/api/examples");
+    if (!response.ok) throw new Error("Could not load project examples.");
+    examples = (await response.json()).examples;
+    exampleSelect.replaceChildren();
+    for (const example of examples) {
+      const option = document.createElement("option");
+      option.value = example.id;
+      option.textContent = example.name;
+      exampleSelect.append(option);
+    }
+    selectExample(examples.find(item => item.id === "review1")?.id || examples[0]?.id, false);
+    translate(false);
+  } catch {
+    exampleSelect.replaceChildren(new Option("Examples unavailable — write your own", ""));
+    setSourceMode("custom");
+    source.value = customDraft;
+    updateLines();
+    showDiagnostic("Saved examples could not be loaded. You can still type a program yourself.");
+  }
 }
 
 function setStatus(label, kind = "") {
@@ -126,11 +118,62 @@ function stageText(stage) {
   ].filter(Boolean).join("\n\n");
 }
 
+function astNode(node, role = "") {
+  const item = document.createElement("li");
+  if (role) {
+    const roleLabel = document.createElement("span");
+    roleLabel.className = "ast-role";
+    roleLabel.textContent = role;
+    item.append(roleLabel);
+  }
+  const chip = document.createElement("span");
+  chip.className = `ast-chip ast-${node.kind.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+  const kind = document.createElement("strong");
+  kind.textContent = node.kind;
+  chip.append(kind);
+  if (node.detail) {
+    const detail = document.createElement("span");
+    detail.textContent = node.detail;
+    chip.append(detail);
+  }
+  if (node.children.length) {
+    const group = document.createElement("details");
+    group.open = true;
+    const heading = document.createElement("summary");
+    heading.append(chip);
+    group.append(heading);
+    const children = document.createElement("ul");
+    children.className = "ast-children";
+    node.children.forEach(child => children.append(astNode(child.node, child.role)));
+    group.append(children);
+    item.append(group);
+  } else {
+    const leaf = document.createElement("div");
+    leaf.className = "ast-leaf";
+    leaf.append(chip);
+    item.append(leaf);
+  }
+  return item;
+}
+
+function showAstTree(tree) {
+  const root = document.createElement("ul");
+  root.className = "ast-root";
+  root.append(astNode(tree));
+  astTree.replaceChildren(root);
+}
+
 function selectStage(stage) {
   activeStage = stage;
   tabs.forEach(tab => { tab.setAttribute("aria-selected", String(tab.dataset.stage === stage)); tab.tabIndex = tab.dataset.stage === stage ? 0 : -1; });
   stageName.textContent = stageLabels[stage];
-  result.textContent = stageText(stage);
+  const visualAst = stage === "ast" && Boolean(compilation?.ast_tree);
+  result.hidden = visualAst;
+  astTree.hidden = !visualAst;
+  expandTreeButton.hidden = !visualAst;
+  collapseTreeButton.hidden = !visualAst;
+  if (visualAst) showAstTree(compilation.ast_tree);
+  else result.textContent = stageText(stage);
   result.scrollTop = 0;
   copyButton.disabled = !compilation;
   downloadButton.disabled = !compilation;
@@ -186,7 +229,29 @@ async function translate(run) {
 }
 
 exampleSelect.addEventListener("change", () => selectExample(exampleSelect.value));
-source.addEventListener("input", updateLines);
+examplesModeButton.addEventListener("click", () => {
+  if (sourceMode === "custom") customDraft = source.value;
+  selectExample(exampleSelect.value || examples[0]?.id);
+});
+customModeButton.addEventListener("click", () => {
+  if (sourceMode === "custom") return;
+  setSourceMode("custom");
+  exampleFile.textContent = "";
+  source.value = customDraft;
+  programInput.value = "";
+  updateLines();
+  source.scrollTop = 0;
+  lineNumbers.scrollTop = 0;
+  invalidateCompilation();
+  source.focus();
+  source.setSelectionRange(6, 6);
+});
+source.addEventListener("input", () => {
+  updateLines();
+  if (sourceMode === "examples") setSourceMode("custom");
+  customDraft = source.value;
+  invalidateCompilation();
+});
 source.addEventListener("scroll", () => { lineNumbers.scrollTop = source.scrollTop; });
 source.addEventListener("keydown", event => {
   if (event.key === "Tab") {
@@ -203,6 +268,8 @@ source.addEventListener("keydown", event => {
 translateButton.addEventListener("click", () => translate(false));
 runButton.addEventListener("click", () => translate(true));
 tabs.forEach(tab => tab.addEventListener("click", () => selectStage(tab.dataset.stage)));
+expandTreeButton.addEventListener("click", () => astTree.querySelectorAll("details").forEach(item => { item.open = true; }));
+collapseTreeButton.addEventListener("click", () => astTree.querySelectorAll("details").forEach((item, index) => { item.open = index === 0; }));
 copyButton.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(stageText(activeStage));
@@ -221,6 +288,5 @@ downloadButton.addEventListener("click", () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
-selectExample("arithmetic", false);
 selectStage("c");
-translate(false);
+loadExamples();
