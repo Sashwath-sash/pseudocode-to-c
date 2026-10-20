@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#081621">
+  <meta name="description" content="Explore a restricted pseudocode-to-C compiler: write a program, inspect each compiler stage, and run the generated C locally.">
+  <title>Pseudocode to C — Compiler Studio</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Pseudocode to C home">
+        <span class="brand-mark">P<span>→</span>C</span>
+        <span class="brand-name">Pseudocode to C<small>Compiler studio</small></span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="#workspace">Workspace</a>
+        <a href="#pipeline">How it works</a>
+        <a href="#language">Language</a>
+      </nav>
+      <a class="header-link" href="https://github.com/Sashwath-sash/pseudocode-to-c" target="_blank" rel="noopener noreferrer">View source <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="status-dot"></span> Compiler design project · Working prototype</p>
+          <h1 id="hero-title">From an algorithm<br><em>to readable C.</em></h1>
+          <p class="hero-lede">Write structured pseudocode, follow it through the compiler, and inspect the C it generates. The editor, explanation, and examples are all here.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#workspace">Open the compiler <span aria-hidden="true">↗</span></a>
+            <a class="button subtle" href="#pipeline">Understand the stages</a>
+          </div>
+          <div class="hero-stats" aria-label="Project highlights">
+            <span><strong>6</strong> visible compiler stages</span>
+            <span><strong>4</strong> source data types</span>
+            <span><strong>C99</strong> generated output</span>
+          </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="visual-top"><span><i></i><i></i><i></i></span><span>translation preview</span><span>01 / 03</span></div>
+          <div class="visual-grid">
+            <div class="mini-pane">
+              <span class="mini-label">PSEUDOCODE</span>
+              <pre><span class="kw">BEGIN</span>
+<span class="kw">DECLARE</span> x <span class="kw">AS</span> INTEGER
+<span class="kw">SET</span> x = <span class="num">2</span> + <span class="num">3</span>
+<span class="kw">PRINT</span> x
+<span class="kw">END</span></pre>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="mini-pane">
+              <span class="mini-label">GENERATED C</span>
+              <pre><span class="type">int</span> main(<span class="type">void</span>) {
+  <span class="type">int</span> x;
+  x = <span class="num">5</span>;
+  printf(<span class="str">"%d\n"</span>, x);
+  <span class="kw">return</span> 0;
+}</pre>
+            </div>
+          </div>
+          <div class="visual-footer"><span class="check">✓</span> Constant expression optimized <span class="output-pill">output: 5</span></div>
+        </div>
+      </section>
+
+      <section id="workspace" class="workspace-section" aria-labelledby="workspace-title">
+        <div class="section-heading">
+          <div><p class="eyebrow">01 / EXPLORE</p><h2 id="workspace-title">The compiler workspace</h2><p>Enter a complete program, translate it, then open any stage on the right.</p></div>
+          <div class="workspace-hint"><span class="hint-key">Ctrl</span> + <span class="hint-key">Enter</span> to translate</div>
+        </div>
+        <div class="workspace-grid">
+          <div class="panel editor-panel">
+            <div class="panel-bar"><span><span class="panel-icon cyan">{ }</span> Source editor</span><span class="panel-meta">restricted pseudocode</span></div>
+            <div class="editor-toolbar">
+              <label for="example-select">Load example</label>
+              <select id="example-select" aria-label="Load example">
+                <option value="arithmetic">Arithmetic and optimization</option>
+                <option value="branch">IF / ELSE</option>
+                <option value="loop">FOR and CONTINUE</option>
+                <option value="stringBits">STRING and bitwise</option>
+                <option value="division">Automatic division guard</option>
+                <option value="array">Automatic array guard</option>
+              </select>
+            </div>
+            <label class="sr-only" for="source">Pseudocode source</label>
+            <div class="editor-wrap"><div id="line-numbers" class="line-numbers" aria-hidden="true"></div><textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-describedby="source-help"></textarea></div>
+            <p id="source-help" class="editor-help">Use one statement per line. Begin with <code>BEGIN</code> and finish with <code>END</code>.</p>
+            <div class="runtime-input">
+              <label for="program-input">Program input <span>for READ statements</span></label>
+              <input id="program-input" type="text" placeholder="Example: 20 0" autocomplete="off">
+            </div>
+            <div class="editor-actions"><button id="translate-btn" class="button primary" type="button">Translate to C <span aria-hidden="true">→</span></button><button id="run-btn" class="button outline" type="button">Translate &amp; run</button></div>
+          </div>
+
+          <div class="panel results-panel" aria-live="polite">
+            <div class="panel-bar"><span><span class="panel-icon green">▣</span> Compiler output</span><span id="status" class="status">Ready</span></div>
+            <div id="stage-tabs" class="stage-tabs" role="tablist" aria-label="Compiler stages">
+              <button type="button" role="tab" data-stage="tokens">Tokens</button>
+              <button type="button" role="tab" data-stage="ast">AST</button>
+              <button type="button" role="tab" data-stage="symbols">Symbols</button>
+              <button type="button" role="tab" data-stage="ir">IR</button>
+              <button type="button" role="tab" data-stage="optimized_ir">Optimized IR</button>
+              <button type="button" role="tab" data-stage="c" aria-selected="true">C code</button>
+              <button type="button" role="tab" data-stage="output">Run output</button>
+            </div>
+            <div class="result-topline"><span id="stage-name">Generated C</span><div><button id="copy-btn" class="text-button" type="button" disabled>Copy</button><button id="download-btn" class="text-button" type="button" disabled>Download C</button></div></div>
+            <pre id="result" class="result-code" role="tabpanel" tabindex="0">Choose an example or write your own program, then select “Translate to C”.</pre>
+            <div id="diagnostic" class="diagnostic" role="alert" hidden></div>
+          </div>
+        </div>
+        <p class="workspace-note"><span class="dot cyan-dot"></span> Translation uses the project’s Python compiler. Running C requires GCC installed on this computer; it has a three-second limit.</p>
+      </section>
+
+      <section id="pipeline" class="pipeline-section" aria-labelledby="pipeline-title">
+        <div class="section-heading"><div><p class="eyebrow">02 / UNDERSTAND</p><h2 id="pipeline-title">What happens between source and C?</h2><p>Each step produces a representation you can inspect in the workspace.</p></div></div>
+        <div class="pipeline-grid">
+          <article class="step-card"><span class="step-num">01</span><h3>Lexical analysis</h3><p>The lexer splits source into keywords, identifiers, literals and operators, with line and column positions.</p><span class="step-file">lexer.py → tokens</span></article>
+          <article class="step-card"><span class="step-num">02</span><h3>Parsing</h3><p>The parser checks statement structure and builds an abstract syntax tree for expressions and blocks.</p><span class="step-file">parser.py → AST</span></article>
+          <article class="step-card"><span class="step-num">03</span><h3>Semantic checks</h3><p>Names, types and lexical scopes are checked. The symbol table records declarations.</p><span class="step-file">semantic.py → symbols</span></article>
+          <article class="step-card"><span class="step-num">04</span><h3>Intermediate code</h3><p>Expressions become ordered temporary steps; loops and branches stay structured.</p><span class="step-file">ir.py → IR</span></article>
+          <article class="step-card"><span class="step-num">05</span><h3>Optimization</h3><p>Safe integer constants and selected identities are simplified before output.</p><span class="step-file">optimizer.py → optimized IR</span></article>
+          <article class="step-card"><span class="step-num">06</span><h3>C generation</h3><p>The backend emits readable C, including selected runtime guards for risky operations.</p><span class="step-file">cgen.py → C99</span></article>
+        </div>
+      </section>
+
+      <section id="language" class="language-section" aria-labelledby="language-title">
+        <div class="section-heading"><div><p class="eyebrow">03 / REFERENCE</p><h2 id="language-title">A small language with clear rules.</h2><p>The syntax is deliberately structured so each compiler stage is visible and explainable.</p></div></div>
+        <div class="language-grid">
+          <div class="language-card"><div class="language-symbol">01</div><h3>Data</h3><p><code>INTEGER</code>, <code>REAL</code>, <code>CHAR</code>, <code>STRING</code>, plus fixed-size one-dimensional arrays.</p></div>
+          <div class="language-card"><div class="language-symbol">02</div><h3>Flow</h3><p><code>IF / ELSE</code>, <code>WHILE</code>, inclusive <code>FOR</code>, <code>BREAK</code> and <code>CONTINUE</code>.</p></div>
+          <div class="language-card"><div class="language-symbol">03</div><h3>Operations</h3><p>Arithmetic, comparisons, integer bitwise operations, <code>READ</code> and <code>PRINT</code>.</p></div>
+          <div class="language-card"><div class="language-symbol">04</div><h3>Checks</h3><p>Declaration and type errors are caught before C. Division, array bounds and shift counts have targeted generated guards.</p></div>
+        </div>
+        <div class="scope-note"><strong>Current scope</strong><p>This is a defined pseudocode language, not free-form English. Functions, multidimensional arrays and logical AND/OR are not supported. STRING values hold at most 255 ASCII characters. General arithmetic overflow and uninitialized use are not automatically checked.</p></div>
+      </section>
+    </main>
+    <footer class="site-footer"><span>Pseudocode to C <span class="muted">/ compiler design project</span></span><a href="#top">Back to top ↑</a></footer>
+  </div>
+</body>
+</html>

@@ -6,6 +6,20 @@ A compiler project that translates a restricted pseudocode language into readabl
 
 The compiler uses Python's standard library. GCC compiles and runs generated programs during validation.
 
+## Local website
+
+The project includes a local website with a pseudocode editor, example programs, every compiler stage, generated C, execution output and an explanation of the pipeline. It uses the same Python compiler as the command-line interface; there is no separate translation engine in the browser.
+
+From the project folder, run:
+
+```sh
+python webapp/server.py
+```
+
+Open **http://127.0.0.1:8000** in a browser. Select an example or type a complete program, then choose **Translate to C**. **Translate & run** also compiles the generated C with local GCC and displays standard output, errors and exit status. Supply space-separated values in **Program input** for `READ` statements. Download C saves the current translation as `generated.c`.
+
+The server binds to `127.0.0.1`, so it is for local use. Translation requires Python 3.10+; running C requires GCC on `PATH`. Program execution has the same three-second timeout as the CLI. This website is a UI for the existing restricted language and does not add free-form English parsing.
+
 ## Quick start
 
 Requirements: **Python 3.10+**; **GCC** on PATH for execution and integration tests. Translation alone does not require GCC.
