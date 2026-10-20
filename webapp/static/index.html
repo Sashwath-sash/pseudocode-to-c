@@ -86,7 +86,7 @@
             </div>
             <label class="sr-only" for="source">Pseudocode source</label>
             <div class="editor-wrap"><div id="line-numbers" class="line-numbers" aria-hidden="true"></div><textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-describedby="source-help"></textarea></div>
-            <p id="source-help" class="editor-help">Use one statement per line. Begin with <code>BEGIN</code> and finish with <code>END</code>.</p>
+            <p id="source-help" class="editor-help">Use one statement per line. Put optional <code>FUNCTION</code> blocks before <code>BEGIN</code>; finish with <code>END</code>.</p>
             <div class="runtime-input">
               <label for="program-input">Program input <span>for READ statements</span></label>
               <input id="program-input" type="text" placeholder="Example: 20 0" autocomplete="off">
@@ -129,12 +129,12 @@
       <section id="language" class="language-section" aria-labelledby="language-title">
         <div class="section-heading"><div><p class="eyebrow">03 / REFERENCE</p><h2 id="language-title">A small language with clear rules.</h2><p>The syntax is deliberately structured so each compiler stage is visible and explainable.</p></div></div>
         <div class="language-grid">
-          <div class="language-card"><div class="language-symbol">01</div><h3>Data</h3><p><code>INTEGER</code>, <code>REAL</code>, <code>CHAR</code>, <code>STRING</code>, plus fixed-size one-dimensional arrays.</p></div>
-          <div class="language-card"><div class="language-symbol">02</div><h3>Flow</h3><p><code>IF / ELSE</code>, <code>WHILE</code>, inclusive <code>FOR</code>, <code>BREAK</code> and <code>CONTINUE</code>.</p></div>
-          <div class="language-card"><div class="language-symbol">03</div><h3>Operations</h3><p>Arithmetic, comparisons, integer bitwise operations, <code>READ</code> and <code>PRINT</code>.</p></div>
+          <div class="language-card"><div class="language-symbol">01</div><h3>Data</h3><p><code>INTEGER</code>, <code>REAL</code>, <code>CHAR</code>, <code>STRING</code>, plus fixed-size one- and two-dimensional arrays.</p></div>
+          <div class="language-card"><div class="language-symbol">02</div><h3>Flow</h3><p><code>IF / ELSE</code>, <code>WHILE</code>, inclusive <code>FOR</code>, <code>BREAK</code>, <code>CONTINUE</code>, and typed functions.</p></div>
+          <div class="language-card"><div class="language-symbol">03</div><h3>Operations</h3><p>Arithmetic, comparisons, short-circuit <code>AND / OR / NOT</code>, integer bitwise operations, <code>READ</code> and <code>PRINT</code>.</p></div>
           <div class="language-card"><div class="language-symbol">04</div><h3>Checks</h3><p>Declaration and type errors are caught before C. Division, array bounds and shift counts have targeted generated guards.</p></div>
         </div>
-        <div class="scope-note"><strong>Current scope</strong><p>This is a defined pseudocode language, not free-form English. Functions, multidimensional arrays and logical AND/OR are not supported. STRING values hold at most 255 ASCII characters. General arithmetic overflow and uninitialized use are not automatically checked.</p></div>
+        <div class="scope-note"><strong>Current scope</strong><p>This is a defined pseudocode language, not free-form English or C input. Pointers, structures and dynamic allocation are not supported. Functions use scalar parameters and returns; arrays have at most two dimensions. STRING values hold at most 255 ASCII characters. General arithmetic overflow and uninitialized use are not automatically checked.</p></div>
       </section>
     </main>
     <footer class="site-footer"><span>Pseudocode to C <span class="muted">/ compiler design project</span></span><a href="#top">Back to top ↑</a></footer>

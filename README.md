@@ -62,9 +62,10 @@ Run `./build/review1` on Linux/macOS, or `.\build\review1.exe` in Windows PowerS
 | --- | --- |
 | Types | INTEGER, REAL, CHAR, fixed-buffer STRING; INTEGER-to-REAL widening |
 | Statements | DECLARE, SET, READ, PRINT, REQUIRE, ENSURE, BREAK, CONTINUE |
-| Expressions | Arithmetic, bitwise INTEGER operators, unary signs/complement, parentheses and comparison conditions |
+| Expressions | Arithmetic, bitwise INTEGER operators, unary signs/complement, parentheses, comparisons and short-circuit AND/OR/NOT conditions |
 | Control flow | Nested IF/ELSE, WHILE, inclusive FOR with signed literal STEP, nearest-loop BREAK/CONTINUE |
-| Arrays | Fixed-size, zero-based, one-dimensional arrays |
+| Arrays | Fixed-size, zero-based, one- and two-dimensional arrays (up to 100000 elements) |
+| Functions | Scalar INTEGER/REAL/CHAR parameters and return values, typed calls and RETURN |
 | Scope | Block-local declarations and shadowing |
 | Diagnostics | Source locations, declaration/type checks, constant index checks, similar-name suggestions, constant-false contract checks and basic parser recovery |
 | Automatic runtime guards | Variable `/` and `%` zero checks, dynamic array bounds, shift-count and STRING-input length checks; widened FOR control handles extreme bounds safely |
@@ -91,6 +92,8 @@ Keywords are case-insensitive; identifiers are case-sensitive. Write one stateme
 | Contract-checked array access | `python main.py examples/contracts_array.pseudo --run --input examples/array_valid.txt` | `42` |
 | Automatic division guard (no REQUIRE) | `python main.py examples/automatic_division.pseudo --run --input examples/division_valid.txt` | `5` |
 | Automatic array guard (no REQUIRE) | `python main.py examples/automatic_array_bounds.pseudo --run --input examples/array_valid.txt` | `42` |
+| Logic and matrix | `python main.py examples/logic_matrix.pseudo --run` | `7` |
+| Typed function | `python main.py examples/function_larger.pseudo --run` | `8` |
 
 `--show-all` displays intermediate stages. `--out` chooses the output path; by default it is the source path with a `.c` extension. `--no-optimize` generates C directly from the original IR for comparison.
 
@@ -137,7 +140,7 @@ GitHub Actions runs the same suite on Linux with Python 3.10 and 3.13. Without G
 
 ## Scope and remaining work
 
-This is a working educational prototype for a defined language subset. It does not accept arbitrary English. Functions, logical AND/OR, multidimensional arrays, pointers, structures, dynamic allocation, a GUI, an interpreter and machine-code generation are not implemented. STRING values use fixed 256-byte buffers and hold at most 255 ASCII characters; READ accepts one whitespace-delimited token. String concatenation and STRING arrays are unsupported. Contract conditions use the existing single-comparison grammar; combine checks as separate REQUIRE statements instead of using AND/OR.
+This is a working educational prototype for a defined language subset. It does not accept arbitrary English or C source code. Pointers, structures, dynamic allocation, higher-dimensional arrays, array parameters, a GUI, an interpreter and machine-code generation are not implemented. Functions have scalar INTEGER/REAL/CHAR parameters and return values and must return on every control-flow path. STRING values use fixed 256-byte buffers and hold at most 255 ASCII characters; READ accepts one whitespace-delimited token. String concatenation and STRING arrays are unsupported. Conditions support short-circuit AND/OR/NOT; contract conditions can use them too.
 
 INTEGER bitwise operators `&`, `|`, `^`, `~`, `<<`, and `>>` are supported. Shift counts are checked before the C operation. BREAK and CONTINUE must appear inside a loop; CONTINUE in a FOR loop still runs its iterator update.
 

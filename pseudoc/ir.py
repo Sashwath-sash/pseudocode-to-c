@@ -12,12 +12,14 @@ class Atom:
     text: str
     dtype: str
     literal: bool = False
+    inline: bool = False
 
 @dataclass(frozen=True)
 class Place:
     name: str
     dtype: str
     index: Atom | None = None
+    index2: Atom | None = None
 
 @dataclass(frozen=True)
 class Let:
@@ -32,6 +34,7 @@ class Declare:
     name: str
     dtype: str
     size: int | None
+    size2: int | None = None
 
 @dataclass(frozen=True)
 class Assign:
@@ -94,10 +97,28 @@ class Continue:
     pass
 
 @dataclass(frozen=True)
+class Call:
+    target: Atom
+    name: str
+    arguments: tuple[Atom, ...]
+
+@dataclass(frozen=True)
+class Return:
+    value: Atom
+
+@dataclass(frozen=True)
+class Function:
+    name: str
+    parameters: tuple[n.Parameter, ...]
+    return_type: str
+    body: Block
+
+@dataclass(frozen=True)
 class Block:
     instructions: tuple[Instruction, ...]
+    functions: tuple[Function, ...] = ()
 
-Instruction = Let | Declare | Assign | Read | Print | Contract | BoundsCheck | If | While | For | Break | Continue
+Instruction = Let | Declare | Assign | Read | Print | Contract | BoundsCheck | If | While | For | Break | Continue | Call | Return
 
 class IRBuilder:
     def __init__(self, symbols: list[Symbol]):
@@ -105,6 +126,7 @@ class IRBuilder:
         self.scopes: list[dict[str, Symbol]] = [{}]
         self.temp_count = 0
         self.reserved = {s.name for s in symbols}
+        self.function_types: dict[str, str] = {}
 
     def lookup(self, name: str) -> Symbol:
         for scope in reversed(self.scopes):
@@ -121,6 +143,11 @@ class IRBuilder:
                 return Atom(name, dtype)
 
     def expr(self, expr: n.Expr, output: list[Instruction]) -> Atom:
+        if isinstance(expr, n.Call):
+            arguments = tuple(self.expr(arg, output) for arg in expr.arguments)
+            target = self.temp(self.function_types[expr.name])
+            output.append(Call(target, expr.name, arguments))
+            return target
         if isinstance(expr, n.Literal):
             return Atom(expr.text, expr.kind, True)
         if isinstance(expr, n.Variable):
@@ -130,8 +157,14 @@ class IRBuilder:
             index = self.expr(expr.index, output)
             if sym.size is not None and SemanticAnalyzer.constant_int(expr.index) is None:
                 output.append(BoundsCheck(expr.name, index, sym.size, expr.line))
+            index2 = None
+            if expr.index2 is not None:
+                index2 = self.expr(expr.index2, output)
+                if sym.size2 is not None and SemanticAnalyzer.constant_int(expr.index2) is None:
+                    output.append(BoundsCheck(expr.name, index2, sym.size2, expr.line))
             dest = self.temp(sym.dtype)
-            output.append(Let(dest, Atom(f'{expr.name}[{index.text}]', sym.dtype), 'COPY', line=expr.line))
+            suffix = f'[{index.text}]' + (f'[{index2.text}]' if index2 is not None else '')
+            output.append(Let(dest, Atom(expr.name + suffix, sym.dtype), 'COPY', line=expr.line))
             return dest
         if isinstance(expr, n.Unary):
             value = self.expr(expr.operand, output)
@@ -154,15 +187,65 @@ class IRBuilder:
             sym = self.lookup(node.name)
             if sym.size is not None and SemanticAnalyzer.constant_int(node.index) is None:
                 output.append(BoundsCheck(node.name, idx, sym.size, node.line))
-            return Place(node.name, dtype, idx)
+            idx2 = None
+            if node.index2 is not None:
+                idx2 = self.expr(node.index2, output)
+                if sym.size2 is not None and SemanticAnalyzer.constant_int(node.index2) is None:
+                    output.append(BoundsCheck(node.name, idx2, sym.size2, node.line))
+            return Place(node.name, dtype, idx, idx2)
         return Place(node.name, dtype)
 
-    def condition(self, node: n.Condition, setup: list[Instruction]) -> Atom:
+    def condition(self, node: n.ConditionExpr, setup: list[Instruction]) -> Atom:
+        inline = self.inline_condition(node)
+        if inline is not None:
+            return Atom(inline, 'INTEGER', inline=True)
+        if isinstance(node, n.BoolNot):
+            operand = self.condition(node.operand, setup)
+            result = self.temp('INTEGER')
+            setup.append(Let(result, operand, 'UNARY!', line=node.line))
+            return result
+        if isinstance(node, n.BoolOp):
+            left = self.condition(node.left, setup)
+            result = self.temp('INTEGER')
+            setup.append(Declare(result.text, 'INTEGER', None))
+            right_setup: list[Instruction] = []
+            right = self.condition(node.right, right_setup)
+            rhs = Block(tuple(right_setup + [Assign(Place(result.text, 'INTEGER'), right, node.line)]))
+            literal = Atom('0' if node.op == 'AND' else '1', 'INTEGER', True)
+            shortcut = Block((Assign(Place(result.text, 'INTEGER'), literal, node.line),))
+            setup.append(If((), left, rhs if node.op == 'AND' else shortcut,
+                            shortcut if node.op == 'AND' else rhs))
+            return result
         left = self.expr(node.left, setup)
         right = self.expr(node.right, setup)
         result = self.temp('INTEGER')
         setup.append(Let(result, left, node.op, right, node.line))
         return result
+
+    def inline_condition(self, node: n.ConditionExpr) -> str | None:
+        """Use a C condition directly only when no operand needs IR setup or guards."""
+        if isinstance(node, n.BoolNot):
+            operand = self.inline_condition(node.operand)
+            return f'(!({operand}))' if operand is not None else None
+        if isinstance(node, n.BoolOp):
+            left = self.inline_condition(node.left)
+            right = self.inline_condition(node.right)
+            if left is None or right is None:
+                return None
+            op = '&&' if node.op == 'AND' else '||'
+            return f'({left} {op} {right})'
+        operands = []
+        for expr in (node.left, node.right):
+            if isinstance(expr, n.Variable):
+                symbol = self.lookup(expr.name)
+                if symbol.size is not None or symbol.dtype == 'STRING':
+                    return None
+                operands.append(expr.name)
+            elif isinstance(expr, n.Literal) and expr.kind != 'STRING':
+                operands.append(expr.text)
+            else:
+                return None
+        return f'{operands[0]} {node.op} {operands[1]}'
 
     def block(self, source: tuple[n.Stmt, ...]) -> Block:
         self.scopes.append({})
@@ -174,8 +257,8 @@ class IRBuilder:
 
     def statement(self, s: n.Stmt, out: list[Instruction]) -> None:
         if isinstance(s, n.Declaration):
-            self.scopes[-1][s.name] = Symbol(s.name, s.dtype, s.size, '', s.line)
-            out.append(Declare(s.name, s.dtype, s.size))
+            self.scopes[-1][s.name] = Symbol(s.name, s.dtype, s.size, '', s.line, s.size2)
+            out.append(Declare(s.name, s.dtype, s.size, s.size2))
         elif isinstance(s, n.Assignment):
             target = self.place(s.target, out)
             value = self.expr(s.value, out)
@@ -216,23 +299,37 @@ class IRBuilder:
             out.append(Break())
         elif isinstance(s, n.Continue):
             out.append(Continue())
+        elif isinstance(s, n.Return):
+            out.append(Return(self.expr(s.value, out)))
         else:
             raise AssertionError('unexpected statement')
 
     def build(self, program: n.Program) -> Block:
+        self.function_types = {fn.name: fn.return_type for fn in program.functions}
+        self.reserved.update(self.function_types)
+        functions = []
+        for fn in program.functions:
+            self.scopes.append({p.name: Symbol(p.name, p.dtype, None, fn.name, p.line) for p in fn.parameters})
+            body = self.block(fn.body)
+            self.scopes.pop()
+            functions.append(Function(fn.name, fn.parameters, fn.return_type, body))
         result: list[Instruction] = []
         for statement in program.statements:
             self.statement(statement, result)
-        return Block(tuple(result))
+        return Block(tuple(result), tuple(functions))
 
 
 def _p(place: Place) -> str:
-    return place.name if place.index is None else f'{place.name}[{place.index.text}]'
+    if place.index is None:
+        return place.name
+    return f'{place.name}[{place.index.text}]' + (f'[{place.index2.text}]' if place.index2 is not None else '')
 
 def _render(instr: Instruction, level: int, output: list[str]):
     pre = '    ' * level
     if isinstance(instr, Declare):
         suffix = '' if instr.size is None else f'[{instr.size}]'
+        if instr.size2 is not None:
+            suffix += f'[{instr.size2}]'
         output.append(f'{pre}DECLARE {instr.name}{suffix} : {instr.dtype}')
     elif isinstance(instr, Let):
         if instr.op == 'COPY':
@@ -284,10 +381,20 @@ def _render(instr: Instruction, level: int, output: list[str]):
         output.append(f'{pre}BREAK')
     elif isinstance(instr, Continue):
         output.append(f'{pre}CONTINUE')
+    elif isinstance(instr, Call):
+        output.append(f'{pre}{instr.target.text} = CALL {instr.name}({", ".join(arg.text for arg in instr.arguments)})')
+    elif isinstance(instr, Return):
+        output.append(f'{pre}RETURN {instr.value.text}')
 
 
 def render(block: Block) -> str:
     lines: list[str] = []
+    for fn in block.functions:
+        signature = ', '.join(f'{p.name}: {p.dtype}' for p in fn.parameters)
+        lines.append(f'FUNCTION {fn.name}({signature}) RETURNS {fn.return_type}')
+        for instr in fn.body.instructions:
+            _render(instr, 1, lines)
+        lines.append('ENDFUNCTION')
     for instr in block.instructions:
         _render(instr, 0, lines)
     return '\n'.join(lines)

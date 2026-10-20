@@ -117,6 +117,8 @@ def cli(argv: list[str] | None = None) -> int:
             print('\n=== SYMBOL TABLE ===')
             for symbol in result.symbols:
                 suffix = '' if symbol.size is None else f'[{symbol.size}]'
+                if symbol.size2 is not None:
+                    suffix += f'[{symbol.size2}]'
                 print(f'{symbol.name}{suffix:<15} {symbol.dtype:<8} scope={symbol.scope} line={symbol.declared_line}')
             print('\n=== INTERMEDIATE REPRESENTATION ===')
             print(result.ir_text())

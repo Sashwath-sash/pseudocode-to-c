@@ -13,8 +13,8 @@ This comparison uses `Pseudocode_to_C_Phase1_FINAL.docx` and the source from `Ps
 | IF/ELSE, WHILE, FOR, READ and 1-D arrays | Present in the supplied Review 1 source and retained here |
 | Expression after STEP in simplified grammar | Narrower implementation: signed integer literal only |
 | Error detection and basic recovery | Stage-specific errors and statement-boundary synchronization |
-| Optional functions after the core | Not implemented |
-| Phase 2 extensions added after the Phase 1 report | Fixed-buffer `STRING`; INTEGER bitwise operators; `BREAK` / `CONTINUE`; automatic divisor, bounds, shift-count, string-input and FOR-iterator guards; optional `REQUIRE` / `ENSURE` contracts; contextual name suggestions; seeded optimizer differential checking |
+| Optional functions after the core | Typed scalar functions are now implemented as a later extension |
+| Extensions added after the Phase 1 report | Fixed-buffer `STRING`; INTEGER bitwise operators; `BREAK` / `CONTINUE`; typed functions; 2-D arrays; short-circuit `AND` / `OR` / `NOT`; automatic divisor, bounds, shift-count, string-input and FOR-iterator guards; optional `REQUIRE` / `ENSURE` contracts; contextual name suggestions; seeded optimizer differential checking |
 
 Dynamic array bounds checks and divisor-zero checks are now emitted automatically by the C backend. FOR loops translate to C `for` loops; dynamic or extreme bounds use a widened control value to avoid iterator overflow. READ uses direct typed conversion without extra range validation. General INTEGER arithmetic overflow detection and definite-assignment analysis remain possible improvements. No GUI, interpreter, advanced optimizer or native-code backend is claimed.
 

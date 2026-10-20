@@ -14,10 +14,14 @@ def expression(value: n.Expr) -> dict:
         return {"kind": "Variable", "detail": value.name, "children": []}
     if isinstance(value, n.ArrayAccess):
         return {"kind": "Array access", "detail": value.name,
-                "children": [edge("index", expression(value.index))]}
+                "children": [edge("row" if value.index2 is not None else "index", expression(value.index)),
+                             *([edge("column", expression(value.index2))] if value.index2 is not None else [])]}
     if isinstance(value, n.Unary):
         return {"kind": "Unary", "detail": value.op,
                 "children": [edge("operand", expression(value.operand))]}
+    if isinstance(value, n.Call):
+        return {"kind": "Call", "detail": value.name,
+                "children": [edge("argument", expression(arg)) for arg in value.arguments]}
     if isinstance(value, n.Binary):
         return {"kind": "Binary", "detail": value.op,
                 "children": [edge("left", expression(value.left)),
@@ -25,7 +29,12 @@ def expression(value: n.Expr) -> dict:
     raise TypeError(f"Unexpected expression: {type(value).__name__}")
 
 
-def condition(value: n.Condition) -> dict:
+def condition(value: n.ConditionExpr) -> dict:
+    if isinstance(value, n.BoolNot):
+        return {"kind": "NOT", "detail": "", "children": [edge("operand", condition(value.operand))]}
+    if isinstance(value, n.BoolOp):
+        return {"kind": value.op, "detail": "", "children":
+                [edge("left", condition(value.left)), edge("right", condition(value.right))]}
     return {"kind": "Condition", "detail": value.op,
             "children": [edge("left", expression(value.left)),
                          edge("right", expression(value.right))]}
@@ -34,6 +43,8 @@ def condition(value: n.Condition) -> dict:
 def statement(value: n.Stmt) -> dict:
     if isinstance(value, n.Declaration):
         suffix = f"[{value.size}]" if value.size is not None else ""
+        if value.size2 is not None:
+            suffix += f"[{value.size2}]"
         return {"kind": "Declaration", "detail": f"{value.name}{suffix}: {value.dtype}",
                 "children": []}
     if isinstance(value, n.Assignment):
@@ -65,9 +76,18 @@ def statement(value: n.Stmt) -> dict:
                              *(edge("body", statement(item)) for item in value.body)]}
     if isinstance(value, (n.Break, n.Continue)):
         return {"kind": type(value).__name__, "detail": "", "children": []}
+    if isinstance(value, n.Return):
+        return {"kind": "Return", "detail": "", "children": [edge("value", expression(value.value))]}
     raise TypeError(f"Unexpected statement: {type(value).__name__}")
 
 
 def program(value: n.Program) -> dict:
     return {"kind": "Program", "detail": "",
-            "children": [edge("statement", statement(item)) for item in value.statements]}
+            "children": [
+                *(edge("function", {"kind": "Function", "detail": f"{fn.name} → {fn.return_type}",
+                                    "children": [
+                                        *(edge("parameter", {"kind": "Parameter", "detail": f"{p.name}: {p.dtype}", "children": []}) for p in fn.parameters),
+                                        *(edge("body", statement(item)) for item in fn.body),
+                                    ]}) for fn in value.functions),
+                *(edge("statement", statement(item)) for item in value.statements),
+            ]}

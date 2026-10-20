@@ -1,5 +1,5 @@
 """C99 generator from the optimized intermediate representation."""
-from .ir import Block, Let, Declare, Assign, Read, Print, Contract, BoundsCheck, If, While, For, Break, Continue, Place
+from .ir import Block, Let, Declare, Assign, Read, Print, Contract, BoundsCheck, If, While, For, Break, Continue, Place, Call, Return
 from .semantic import STRING_CAPACITY
 
 TYPES = {'INTEGER':'int', 'REAL':'double', 'CHAR':'char'}
@@ -8,7 +8,7 @@ FMT_IN = {'INTEGER':'%d', 'REAL':'%lf', 'CHAR':' %c'}
 
 class CGenerator:
     def __init__(self):
-        self.lines: list[str] = ['#include <stdio.h>', '#include <limits.h>', '', 'int main(void) {']
+        self.lines: list[str] = ['#include <stdio.h>', '#include <limits.h>', '']
         self.depth = 1
         self.for_count = 0
         self.string_read_count = 0
@@ -88,7 +88,9 @@ class CGenerator:
 
     @staticmethod
     def _place(place: Place):
-        return place.name if place.index is None else f'{place.name}[{place.index.text}]'
+        if place.index is None:
+            return place.name
+        return f'{place.name}[{place.index.text}]' + (f'[{place.index2.text}]' if place.index2 is not None else '')
 
     @staticmethod
     def _simple_while_condition(ins: While) -> str | None:
@@ -99,6 +101,8 @@ class CGenerator:
         those checks still run on every iteration.
         """
         if not ins.setup:
+            if ins.condition.inline:
+                return ins.condition.text
             if ins.condition.literal and ins.condition.dtype == 'INTEGER':
                 return ins.condition.text
             return None
@@ -118,6 +122,8 @@ class CGenerator:
     def _instruction(self, ins):
         if isinstance(ins, Declare):
             size = f'[{ins.size}]' if ins.size is not None else ''
+            if ins.size2 is not None:
+                size += f'[{ins.size2}]'
             if ins.dtype == 'STRING':
                 self.emit(f'char {ins.name}[{STRING_CAPACITY}] = "";')
             else:
@@ -281,12 +287,28 @@ class CGenerator:
             self.emit('break;')
         elif isinstance(ins, Continue):
             self.emit('continue;')
+        elif isinstance(ins, Call):
+            self.emit(f'{TYPES[ins.target.dtype]} {ins.target.text} = {ins.name}({", ".join(arg.text for arg in ins.arguments)});')
+        elif isinstance(ins, Return):
+            self.emit(f'return {ins.value.text};')
         else:
             raise AssertionError(f'unknown IR instruction {ins}')
 
     def generate(self, block: Block) -> str:
-        if self._uses_strings(block):
+        if self._uses_strings(block) or any(self._uses_strings(fn.body) for fn in block.functions):
             self.lines.insert(2, '#include <string.h>')
+        for fn in block.functions:
+            params = ', '.join(f'{TYPES[p.dtype]} {p.name}' for p in fn.parameters) or 'void'
+            self.lines.append(f'{TYPES[fn.return_type]} {fn.name}({params});')
+        if block.functions:
+            self.lines.append('')
+        for fn in block.functions:
+            params = ', '.join(f'{TYPES[p.dtype]} {p.name}' for p in fn.parameters) or 'void'
+            self.lines.append(f'{TYPES[fn.return_type]} {fn.name}({params}) {{')
+            self._block(fn.body)
+            self.lines.append('}')
+            self.lines.append('')
+        self.lines.append('int main(void) {')
         self._block(block)
         if not any('INT_MIN' in line or 'INT_MAX' in line or 'CHAR_BIT' in line for line in self.lines):
             self.lines.remove('#include <limits.h>')

@@ -35,10 +35,12 @@ EXAMPLE_NAMES = {
     "phase2_features": "STRING, bitwise and loop control",
     "automatic_division": "Automatic division guard",
     "automatic_array_bounds": "Automatic array bounds guard",
+    "logic_matrix": "AND / OR with a 2D array",
+    "function_larger": "Typed function and RETURN",
     "invalid": "Invalid source and diagnostics",
 }
-FEATURED = ("review1", "sum_for", "phase2_features", "automatic_division",
-            "automatic_array_bounds", "invalid")
+FEATURED = ("review1", "sum_for", "logic_matrix", "function_larger",
+            "phase2_features", "automatic_division", "automatic_array_bounds", "invalid")
 
 
 def project_examples() -> list[dict]:
@@ -77,7 +79,7 @@ def compile_request(payload: object) -> tuple[int, dict]:
         return 422, {"error": str(exc), "stage": "Source diagnostic"}
 
     symbols = [
-        f"{s.name}{f'[{s.size}]' if s.size is not None else ''} : "
+        f"{s.name}{f'[{s.size}]' if s.size is not None else ''}{f'[{s.size2}]' if s.size2 is not None else ''} : "
         f"{s.dtype}    scope={s.scope}    line={s.declared_line}"
         for s in result.symbols
     ]

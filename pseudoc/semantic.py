@@ -12,7 +12,9 @@ STRING_CAPACITY = 256
 C_RESERVED = frozenset(('auto break case char const continue default do double else enum '
     'extern float for goto if inline int long register restrict return short signed '
     'sizeof static struct switch typedef union unsigned void volatile while '
-    '_Bool _Complex _Imaginary main printf scanf EOF NULL BUFSIZ FILENAME_MAX ' 'FOPEN_MAX TMP_MAX L_tmpnam SEEK_SET SEEK_CUR SEEK_END stdin stdout stderr ' 'FILE size_t fpos_t').split())
+    '_Bool _Complex _Imaginary main printf scanf fprintf strcmp strcpy strlen '
+    'EOF NULL BUFSIZ FILENAME_MAX FOPEN_MAX TMP_MAX L_tmpnam '
+    'SEEK_SET SEEK_CUR SEEK_END stdin stdout stderr FILE size_t fpos_t').split())
 
 @dataclass(frozen=True)
 class Symbol:
@@ -21,6 +23,7 @@ class Symbol:
     size: int | None
     scope: str
     declared_line: int
+    size2: int | None = None
 
 class SemanticAnalyzer:
     def __init__(self):
@@ -30,6 +33,8 @@ class SemanticAnalyzer:
         self.issues: list[Issue] = []
         self.counter = 0
         self.loop_depth = 0
+        self.functions: dict[str, n.Function] = {}
+        self.current_return: str | None = None
 
     def error(self, line: int, message: str):
         self.issues.append(Issue('Semantic', message, line))
@@ -75,6 +80,16 @@ class SemanticAnalyzer:
             index = self.constant_int(place.index)
             if index is not None and sym.size is not None and not (0 <= index < sym.size):
                 self.error(place.line, f'constant array index {index} is outside 0..{sym.size - 1}')
+            if sym.size2 is None and place.index2 is not None:
+                self.error(place.line, f'array {sym.name!r} has only one dimension')
+            if sym.size2 is not None and place.index2 is None:
+                self.error(place.line, f'array {sym.name!r} requires two indices')
+            if place.index2 is not None:
+                if self.expr_type(place.index2) not in (None, 'INTEGER'):
+                    self.error(place.line, 'array index must be INTEGER')
+                index2 = self.constant_int(place.index2)
+                if index2 is not None and sym.size2 is not None and not (0 <= index2 < sym.size2):
+                    self.error(place.line, f'constant array index {index2} is outside 0..{sym.size2 - 1}')
         elif sym.size is not None:
             self.error(place.line, f'array {sym.name!r} requires an index')
         return sym.dtype
@@ -114,6 +129,18 @@ class SemanticAnalyzer:
         return None
 
     def expr_type(self, expr: n.Expr) -> str | None:
+        if isinstance(expr, n.Call):
+            function = self.functions.get(expr.name)
+            arg_types = [self.expr_type(arg) for arg in expr.arguments]
+            if function is None:
+                self.error(expr.line, f'unknown function {expr.name!r}')
+                return None
+            if len(arg_types) != len(function.parameters):
+                self.error(expr.line, f'function {expr.name!r} expects {len(function.parameters)} arguments, got {len(arg_types)}')
+            for param, dtype in zip(function.parameters, arg_types):
+                if dtype is not None and dtype != param.dtype and not (param.dtype == 'REAL' and dtype == 'INTEGER'):
+                    self.error(expr.line, f'argument {param.name!r} requires {param.dtype}, got {dtype}')
+            return function.return_type
         if isinstance(expr, n.Literal):
             if expr.kind == 'REAL' and not math.isfinite(float(expr.text)):
                 self.error(expr.line, 'REAL literal exceeds supported finite double range')
@@ -152,7 +179,14 @@ class SemanticAnalyzer:
             self.error(expr.line, 'division or remainder by zero')
         return 'REAL' if 'REAL' in (ltype, rtype) else 'INTEGER'
 
-    def condition(self, cond: n.Condition):
+    def condition(self, cond: n.ConditionExpr):
+        if isinstance(cond, n.BoolNot):
+            self.condition(cond.operand)
+            return
+        if isinstance(cond, n.BoolOp):
+            self.condition(cond.left)
+            self.condition(cond.right)
+            return
         left = self.expr_type(cond.left)
         right = self.expr_type(cond.right)
         if left is None or right is None:
@@ -202,7 +236,16 @@ class SemanticAnalyzer:
         return None
 
     @classmethod
-    def constant_condition(cls, cond: n.Condition) -> bool | None:
+    def constant_condition(cls, cond: n.ConditionExpr) -> bool | None:
+        if isinstance(cond, n.BoolNot):
+            value = cls.constant_condition(cond.operand)
+            return None if value is None else not value
+        if isinstance(cond, n.BoolOp):
+            left = cls.constant_condition(cond.left)
+            right = cls.constant_condition(cond.right)
+            if cond.op == 'AND':
+                return False if left is False or right is False else (True if left is True and right is True else None)
+            return True if left is True or right is True else (False if left is False and right is False else None)
         left = cls.constant_number(cond.left)
         right = cls.constant_number(cond.right)
         if left is None or right is None:
@@ -223,16 +266,18 @@ class SemanticAnalyzer:
 
     def statement(self, stmt: n.Stmt):
         if isinstance(stmt, n.Declaration):
-            if stmt.name in C_RESERVED or stmt.name.startswith('__') or (len(stmt.name) > 1 and stmt.name[0] == '_' and stmt.name[1].isupper()):
+            if stmt.name in C_RESERVED or stmt.name in self.functions or stmt.name.startswith('__') or (len(stmt.name) > 1 and stmt.name[0] == '_' and stmt.name[1].isupper()):
                 self.error(stmt.line, f'identifier {stmt.name!r} is reserved in generated C')
             elif stmt.name in self.scopes[-1]:
                 self.error(stmt.line, f'duplicate declaration of {stmt.name!r} in same scope')
             elif stmt.size is not None and (stmt.size <= 0 or stmt.size > 100000):
                 self.error(stmt.line, 'array size must be between 1 and 100000')
+            elif stmt.size2 is not None and (stmt.size2 <= 0 or stmt.size2 > 100000 or stmt.size * stmt.size2 > 100000):
+                self.error(stmt.line, 'two-dimensional array must contain 1..100000 elements')
             elif stmt.size is not None and stmt.dtype == 'STRING':
                 self.error(stmt.line, 'STRING arrays are not supported')
             else:
-                sym = Symbol(stmt.name, stmt.dtype, stmt.size, self.scope_names[-1], stmt.line)
+                sym = Symbol(stmt.name, stmt.dtype, stmt.size, self.scope_names[-1], stmt.line, stmt.size2)
                 self.scopes[-1][stmt.name] = sym
                 self.symbols.append(sym)
         elif isinstance(stmt, n.Assignment):
@@ -277,8 +322,47 @@ class SemanticAnalyzer:
             if self.loop_depth == 0:
                 keyword = 'BREAK' if isinstance(stmt, n.Break) else 'CONTINUE'
                 self.error(stmt.line, f'{keyword} must be inside a loop')
+        elif isinstance(stmt, n.Return):
+            dtype = self.expr_type(stmt.value)
+            if self.current_return is None:
+                self.error(stmt.line, 'RETURN is only valid inside a function')
+            elif dtype is not None and dtype != self.current_return and not (self.current_return == 'REAL' and dtype == 'INTEGER'):
+                self.error(stmt.line, f'function must return {self.current_return}, got {dtype}')
+
+    @staticmethod
+    def returns_on_all_paths(statements: tuple[n.Stmt, ...]) -> bool:
+        for stmt in statements:
+            if isinstance(stmt, n.Return):
+                return True
+            if isinstance(stmt, n.If) and stmt.no and (
+                SemanticAnalyzer.returns_on_all_paths(stmt.yes)
+                and SemanticAnalyzer.returns_on_all_paths(stmt.no)
+            ):
+                return True
+        return False
 
     def analyze(self, program: n.Program) -> list[Symbol]:
+        for function in program.functions:
+            if function.name in self.functions or function.name in C_RESERVED or function.name.startswith('__') or (len(function.name) > 1 and function.name[0] == '_' and function.name[1].isupper()):
+                self.error(function.line, f'invalid or duplicate function name {function.name!r}')
+            else:
+                self.functions[function.name] = function
+        for function in program.functions:
+            self.begin_scope(f'function_{function.name}')
+            self.current_return = function.return_type
+            for param in function.parameters:
+                if param.name in self.scopes[-1] or param.name in C_RESERVED or param.name.startswith('__') or param.name in self.functions:
+                    self.error(param.line, f'invalid or duplicate parameter {param.name!r}')
+                else:
+                    symbol = Symbol(param.name, param.dtype, None, self.scope_names[-1], param.line)
+                    self.scopes[-1][param.name] = symbol
+                    self.symbols.append(symbol)
+            for stmt in function.body:
+                self.statement(stmt)
+            if not self.returns_on_all_paths(function.body):
+                self.error(function.line, f'function {function.name!r} must RETURN on every path')
+            self.current_return = None
+            self.end_scope()
         for stmt in program.statements:
             self.statement(stmt)
         if self.issues:

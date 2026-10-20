@@ -3,7 +3,7 @@ from .lexer import Token
 from .errors import Issue, TranslationError
 from . import nodes as n
 
-CLOSERS = frozenset({'END', 'ELSE', 'ENDIF', 'ENDWHILE', 'ENDFOR'})
+CLOSERS = frozenset({'END', 'ELSE', 'ENDIF', 'ENDWHILE', 'ENDFOR', 'ENDFUNCTION'})
 REL_OPS = frozenset({'<','>','<=','>=','==','!='})
 TYPE_KINDS = frozenset({'INTEGER','REAL','CHAR','STRING'})
 
@@ -54,6 +54,10 @@ class Parser:
 
     def parse(self) -> n.Program:
         self.skip_empty()
+        functions = []
+        while self.at('FUNCTION'):
+            functions.append(self.function())
+            self.skip_empty()
         self.expect('BEGIN')
         self.consume_line()
         body = self.block({'END'})
@@ -64,7 +68,34 @@ class Parser:
         self.expect('EOF')
         if self.issues:
             raise TranslationError(self.issues)
-        return n.Program(tuple(body))
+        return n.Program(tuple(body), tuple(functions))
+
+    def function(self) -> n.Function:
+        start = self.expect('FUNCTION')
+        name = self.expect('IDENT').text
+        self.expect('(')
+        parameters = []
+        if not self.at(')'):
+            while True:
+                param = self.expect('IDENT')
+                self.expect('AS')
+                if not self.at('INTEGER', 'REAL', 'CHAR'):
+                    self.fail('function parameters must be INTEGER, REAL, or CHAR')
+                parameters.append(n.Parameter(param.text, self.cur.kind, param.line))
+                self.i += 1
+                if not self.accept(','):
+                    break
+        self.expect(')')
+        self.expect('RETURNS')
+        if not self.at('INTEGER', 'REAL', 'CHAR'):
+            self.fail('function return type must be INTEGER, REAL, or CHAR')
+        return_type = self.cur.kind
+        self.i += 1
+        self.consume_line()
+        body = self.block({'ENDFUNCTION'})
+        self.expect('ENDFUNCTION')
+        self.consume_line()
+        return n.Function(name, tuple(parameters), return_type, tuple(body), start.line)
 
     def block(self, stops: set[str]) -> list[n.Stmt]:
         body: list[n.Stmt] = []
@@ -93,13 +124,19 @@ class Parser:
                 tok = self.expect('INT_LITERAL')
                 size = int(tok.text)
                 self.expect(']')
+            size2 = None
+            if self.accept('['):
+                if size is None:
+                    self.fail('second array dimension requires a first dimension')
+                size2 = int(self.expect('INT_LITERAL').text)
+                self.expect(']')
             self.expect('AS')
             if self.cur.kind not in TYPE_KINDS:
                 self.fail('expected INTEGER, REAL, CHAR, or STRING after AS')
             dtype = self.cur.kind
             self.i += 1
             self.consume_line()
-            return n.Declaration(name, dtype, size, t.line)
+            return n.Declaration(name, dtype, size, t.line, size2)
         if self.accept('SET'):
             target = self.place()
             self.expect('=')
@@ -166,6 +203,10 @@ class Parser:
         if self.accept('CONTINUE'):
             self.consume_line()
             return n.Continue(t.line)
+        if self.accept('RETURN'):
+            value = self.expression()
+            self.consume_line()
+            return n.Return(value, t.line)
         self.fail(f'unknown statement beginning with {t.kind} {t.text!r}')
 
     def place(self) -> n.Place:
@@ -173,10 +214,44 @@ class Parser:
         if self.accept('['):
             index = self.expression()
             self.expect(']')
-            return n.ArrayAccess(tok.text, index, tok.line)
+            index2 = None
+            if self.accept('['):
+                index2 = self.expression()
+                self.expect(']')
+            return n.ArrayAccess(tok.text, index, tok.line, index2)
         return n.Variable(tok.text, tok.line)
 
-    def condition(self) -> n.Condition:
+    def condition(self) -> n.ConditionExpr:
+        value = self.and_condition()
+        while self.at('OR'):
+            line = self.cur.line
+            self.i += 1
+            value = n.BoolOp(value, 'OR', self.and_condition(), line)
+        return value
+
+    def and_condition(self) -> n.ConditionExpr:
+        value = self.not_condition()
+        while self.at('AND'):
+            line = self.cur.line
+            self.i += 1
+            value = n.BoolOp(value, 'AND', self.not_condition(), line)
+        return value
+
+    def not_condition(self) -> n.ConditionExpr:
+        if self.at('NOT'):
+            line = self.cur.line
+            self.i += 1
+            return n.BoolNot(self.not_condition(), line)
+        if self.at('('):
+            saved = self.i
+            self.i += 1
+            try:
+                grouped = self.condition()
+                self.expect(')')
+                return grouped
+            except TranslationError:
+                # An arithmetic expression such as (x + 1) < y starts here too.
+                self.i = saved
         left = self.expression()
         if not self.at(*REL_OPS):
             self.fail('expected a comparison operator (<, >, <=, >=, ==, !=)')
@@ -254,6 +329,17 @@ class Parser:
         if self.accept('STRING_LITERAL'):
             return n.Literal(tok.text, 'STRING', tok.line)
         if self.at('IDENT'):
+            if self.tokens[self.i + 1].kind == '(':
+                name = self.expect('IDENT')
+                self.expect('(')
+                args = []
+                if not self.at(')'):
+                    while True:
+                        args.append(self.expression())
+                        if not self.accept(','):
+                            break
+                self.expect(')')
+                return n.Call(name.text, tuple(args), name.line)
             return self.place()
         self.fail(f'expected expression, found {tok.kind} {tok.text!r}')
 

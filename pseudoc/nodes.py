@@ -18,6 +18,7 @@ class ArrayAccess:
     name: str
     index: Expr
     line: int
+    index2: Expr | None = None
 
 @dataclass(frozen=True)
 class Unary:
@@ -32,7 +33,13 @@ class Binary:
     right: Expr
     line: int
 
-Expr = Literal | Variable | ArrayAccess | Unary | Binary
+@dataclass(frozen=True)
+class Call:
+    name: str
+    arguments: tuple[Expr, ...]
+    line: int
+
+Expr = Literal | Variable | ArrayAccess | Unary | Binary | Call
 Place = Variable | ArrayAccess
 
 @dataclass(frozen=True)
@@ -43,11 +50,26 @@ class Condition:
     line: int
 
 @dataclass(frozen=True)
+class BoolOp:
+    left: ConditionExpr
+    op: str
+    right: ConditionExpr
+    line: int
+
+@dataclass(frozen=True)
+class BoolNot:
+    operand: ConditionExpr
+    line: int
+
+ConditionExpr = Condition | BoolOp | BoolNot
+
+@dataclass(frozen=True)
 class Declaration:
     name: str
     dtype: str
     size: int | None
     line: int
+    size2: int | None = None
 
 @dataclass(frozen=True)
 class Assignment:
@@ -105,8 +127,28 @@ class Break:
 class Continue:
     line: int
 
-Stmt = Declaration | Assignment | Read | Print | Require | Ensure | If | While | For | Break | Continue
+@dataclass(frozen=True)
+class Return:
+    value: Expr
+    line: int
+
+Stmt = Declaration | Assignment | Read | Print | Require | Ensure | If | While | For | Break | Continue | Return
+
+@dataclass(frozen=True)
+class Parameter:
+    name: str
+    dtype: str
+    line: int
+
+@dataclass(frozen=True)
+class Function:
+    name: str
+    parameters: tuple[Parameter, ...]
+    return_type: str
+    body: tuple[Stmt, ...]
+    line: int
 
 @dataclass(frozen=True)
 class Program:
     statements: tuple[Stmt, ...]
+    functions: tuple[Function, ...] = ()

@@ -7,8 +7,12 @@ Programs begin with `BEGIN` and finish with `END`. Every statement and block ope
 `NL` denotes a newline, `[]` optional syntax, and `{}` repetition. Blank/comment lines are ignored between statements.
 
 ```text
-program     = BEGIN NL { statement } END [NL]
-statement   = DECLARE identifier [ "[" integer "]" ] AS type NL
+program     = { function } BEGIN NL { statement } END [NL]
+function    = FUNCTION identifier "(" [ parameter { "," parameter } ] ")"
+              RETURNS scalar_type NL { statement } ENDFUNCTION NL
+parameter   = identifier AS scalar_type
+scalar_type = INTEGER | REAL | CHAR
+statement   = DECLARE identifier [ "[" integer "]" [ "[" integer "]" ] ] AS type NL
             | SET location "=" expression NL
             | READ location NL
             | PRINT expression NL
@@ -20,10 +24,13 @@ statement   = DECLARE identifier [ "[" integer "]" ] AS type NL
             | FOR identifier "=" expression TO expression
                 [ STEP [ "+" | "-" ] integer ] DO NL
                 { statement } ENDFOR NL
-            | BREAK NL | CONTINUE NL
+            | BREAK NL | CONTINUE NL | RETURN expression NL
 type        = INTEGER | REAL | CHAR | STRING
-location    = identifier [ "[" expression "]" ]
-condition   = expression ( "<" | ">" | "<=" | ">=" | "==" | "!=" ) expression
+location    = identifier [ "[" expression "]" [ "[" expression "]" ] ]
+condition   = cond_and { OR cond_and }
+cond_and    = cond_not { AND cond_not }
+cond_not    = NOT cond_not | "(" condition ")" | comparison
+comparison  = expression ( "<" | ">" | "<=" | ">=" | "==" | "!=" ) expression
 expression  = bit_or
 bit_or      = bit_xor { "|" bit_xor }
 bit_xor     = bit_and { "^" bit_and }
@@ -33,11 +40,12 @@ additive    = term { ( "+" | "-" ) term }
 term        = factor { ( "*" | "/" | "%" ) factor }
 factor      = ( "+" | "-" | "~" ) factor | "(" expression ")"
             | integer | real | character | string | location
+            | identifier "(" [ expression { "," expression } ] ")"
 ```
 
-The final physical newline is optional. Conditions require exactly one comparison; Boolean combinations are unsupported. Operators follow the precedence shown by the grammar. Arithmetic and bitwise binary operators associate left to right.
+The final physical newline is optional. Each simple condition compares two expressions. `NOT` binds tighter than `AND`, which binds tighter than `OR`; parentheses group compound conditions. `AND` and `OR` short-circuit, so the right side is not evaluated when the left determines the result. Operators follow the precedence shown by the grammar. Arithmetic and bitwise binary operators associate left to right.
 
-`REQUIRE condition` checks a precondition at that point in execution. `ENSURE condition` checks a postcondition at that point. Both use the existing single-comparison condition grammar. Put a REQUIRE before the operation it protects and an ENSURE after the operation whose result it checks. Multiple checks can be written on separate lines; `AND` and `OR` are not supported. The compiler rejects a contract it can prove is always false and emits a runtime diagnostic for conditions that depend on values. A failed runtime contract prints its kind and source line to standard error and exits with status 1. Contracts do not initialize variables or automatically guard later operations; ensure every referenced value has already been assigned or read.
+`REQUIRE condition` checks a precondition at that point in execution. `ENSURE condition` checks a postcondition at that point. Put a REQUIRE before the operation it protects and an ENSURE after the operation whose result it checks. Multiple checks can be written on separate lines or combined with `AND`/`OR`. The compiler rejects a contract it can prove is always false and emits a runtime diagnostic for conditions that depend on values. A failed runtime contract prints its kind and source line to standard error and exits with status 1. Contracts do not initialize variables or automatically guard later operations; ensure every referenced value has already been assigned or read.
 
 ## Types and values
 
@@ -53,7 +61,26 @@ Mixed INTEGER/REAL arithmetic produces REAL. INTEGER may be assigned to REAL; na
 
 Declarations take effect from their position in the block. Inner blocks may shadow outer names. Same-scope duplicate declarations are errors. Declarations do not initialize values.
 
-Array sizes are literal integers from 1 through 100000. Indices are zero-based INTEGER expressions. Statically evaluable integer indices are checked during translation; dynamic indices receive an automatic runtime bounds check before each read or write and stop the generated program with a source-line diagnostic if out of range. Whole-array assignment/printing is unsupported.
+Array sizes are literal integers. One-dimensional arrays have 1..100000 elements; two-dimensional arrays may contain at most 100000 elements in total. Indices are zero-based INTEGER expressions, and two-dimensional arrays require both indices. Statically evaluable integer indices are checked during translation; dynamic indices receive an automatic runtime bounds check for each dimension before each read or write and stop the generated program with a source-line diagnostic if out of range. Whole-array assignment/printing is unsupported.
+
+## Functions
+
+Define typed functions before `BEGIN`. For example:
+
+```text
+FUNCTION larger(a AS INTEGER, b AS INTEGER) RETURNS INTEGER
+IF a > b THEN
+    RETURN a
+ELSE
+    RETURN b
+ENDIF
+ENDFUNCTION
+BEGIN
+PRINT larger(5, 8)
+END
+```
+
+Function arguments are passed by value. Parameters and return values are scalar INTEGER, REAL or CHAR; INTEGER arguments and returns may widen to REAL. A function must have a RETURN on every control-flow path. Functions may call other functions, including themselves, but recursion depth and termination are the program's responsibility. There are no void functions, array or STRING parameters, nested function definitions, or local capture of main-program variables.
 
 ## Loops
 

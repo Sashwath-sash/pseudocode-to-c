@@ -4,7 +4,8 @@ Only compiler-created temporary values are propagated. Source variables are neve
 assumed constant, which prevents incorrect transformations across branches/loops.
 """
 from dataclasses import replace
-from .ir import Atom, Block, Let, Declare, Assign, Read, Print, Contract, BoundsCheck, If, While, For, Place
+import re
+from .ir import Atom, Block, Let, Declare, Assign, Read, Print, Contract, BoundsCheck, If, While, For, Place, Call, Return
 from .semantic import INT_MIN, INT_MAX
 
 
@@ -56,7 +57,8 @@ def _sequence(instructions, inherited=None):
         return env.get(atom.text, atom) if not atom.literal else atom
 
     def place(p: Place) -> Place:
-        return replace(p, index=get(p.index)) if p.index is not None else p
+        return replace(p, index=get(p.index) if p.index is not None else None,
+                       index2=get(p.index2) if p.index2 is not None else None)
 
     for ins in instructions:
         if isinstance(ins, Let):
@@ -67,11 +69,8 @@ def _sequence(instructions, inherited=None):
                 # C array access is an expression, not a pure variable atom.
                 # Its index was evaluated in its own temp, so substitution
                 # must also work inside the bracketed expression.
-                base, suffix = a.text.split('[', 1)
-                index_name = suffix[:-1]
-                sub = env.get(index_name)
-                if sub is not None:
-                    a = replace(a, text=f'{base}[{sub.text}]')
+                a = replace(a, text=re.sub(r'\[([A-Za-z_]\w*)\]',
+                    lambda match: '[' + env.get(match.group(1), Atom(match.group(1), 'INTEGER')).text + ']', a.text))
             if ins.op == 'COPY':
                 substitute = a if a.literal else None
             elif ins.op in ('UNARY+', 'UNARY-'):
@@ -110,6 +109,10 @@ def _sequence(instructions, inherited=None):
             result.append(replace(ins, target=place(ins.target)))
         elif isinstance(ins, Print):
             result.append(replace(ins, value=get(ins.value)))
+        elif isinstance(ins, Call):
+            result.append(replace(ins, arguments=tuple(get(arg) for arg in ins.arguments)))
+        elif isinstance(ins, Return):
+            result.append(replace(ins, value=get(ins.value)))
         elif isinstance(ins, Contract):
             result.append(replace(ins, condition=get(ins.condition)))
         elif isinstance(ins, BoundsCheck):
@@ -143,4 +146,8 @@ def _sequence(instructions, inherited=None):
 
 def optimize(block: Block) -> Block:
     output, _ = _sequence(block.instructions)
-    return Block(tuple(output))
+    functions = []
+    for fn in block.functions:
+        body, _ = _sequence(fn.body.instructions)
+        functions.append(replace(fn, body=Block(tuple(body))))
+    return Block(tuple(output), tuple(functions))

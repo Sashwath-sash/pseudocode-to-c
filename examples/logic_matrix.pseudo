@@ -1,0 +1,11 @@
+BEGIN
+DECLARE grid[2][3] AS INTEGER
+DECLARE row AS INTEGER
+DECLARE col AS INTEGER
+SET row = 1
+SET col = 2
+SET grid[row][col] = 7
+IF row == 1 AND (col == 2 OR col == 0) THEN
+    PRINT grid[row][col]
+ENDIF
+END

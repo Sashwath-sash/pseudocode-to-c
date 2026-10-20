@@ -4,8 +4,8 @@ import ast
 import re
 from .errors import Issue, TranslationError
 
-KEYWORDS = frozenset('BEGIN END DECLARE AS SET READ PRINT REQUIRE ENSURE IF THEN ELSE ENDIF WHILE DO ENDWHILE FOR TO STEP ENDFOR BREAK CONTINUE INTEGER REAL CHAR STRING'.split())
-TOKEN_RE = re.compile(r'[A-Za-z_][A-Za-z_0-9]*|[0-9]+\.[0-9]+|[0-9]+|<=|>=|==|!=|<<|>>|[+*/%\-<>=()\[\]&|^~]')
+KEYWORDS = frozenset('BEGIN END DECLARE AS SET READ PRINT REQUIRE ENSURE IF THEN ELSE ENDIF WHILE DO ENDWHILE FOR TO STEP ENDFOR BREAK CONTINUE INTEGER REAL CHAR STRING AND OR NOT FUNCTION RETURNS ENDFUNCTION RETURN'.split())
+TOKEN_RE = re.compile(r'[A-Za-z_][A-Za-z_0-9]*|[0-9]+\.[0-9]+|[0-9]+|<=|>=|==|!=|<<|>>|[+*/%\-<>=(),\[\]&|^~]')
 
 _STRING_ESCAPES = frozenset({'n', 't', 'r', '0', '\\', '"', "'"})
 

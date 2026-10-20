@@ -45,4 +45,4 @@ Lowest two bits:
 3
 ```
 
-The translator handles the documented restricted grammar. It does not translate free-form English or support functions, multidimensional arrays, or logical AND/OR. See [language.md](language.md) for syntax and limits.
+The translator handles the documented restricted grammar. It does not translate free-form English or C source code. Later updates added typed scalar functions, two-dimensional arrays and short-circuit logical conditions. See [language.md](language.md) for current syntax and limits.
