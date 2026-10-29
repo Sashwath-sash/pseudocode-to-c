@@ -1,0 +1,13 @@
+BEGIN
+DECLARE values[4] AS INTEGER
+DECLARE i AS INTEGER
+DECLARE total AS INTEGER
+SET total = 0
+FOR i = 0 TO 3 DO
+    READ values[i]
+ENDFOR
+FOR i = 0 TO 3 DO
+    SET total = total + values[i]
+ENDFOR
+PRINT total
+END

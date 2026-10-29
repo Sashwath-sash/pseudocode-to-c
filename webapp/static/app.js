@@ -84,7 +84,7 @@ async function loadExamples() {
       option.textContent = example.name;
       exampleSelect.append(option);
     }
-    selectExample(examples.find(item => item.id === "review1")?.id || examples[0]?.id, false);
+    selectExample(examples.find(item => item.id === "array_sum_input")?.id || examples[0]?.id, false);
     translate(false);
   } catch {
     exampleSelect.replaceChildren(new Option("Examples unavailable — write your own", ""));

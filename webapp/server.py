@@ -23,6 +23,7 @@ MAX_SOURCE_CHARS = 40_000
 MAX_INPUT_CHARS = 4_000
 EXAMPLE_DIR = ROOT / "examples"
 EXAMPLE_INPUTS = {
+    "array_sum_input": "array_sum_input.txt",
     "sum_for": "input5.txt",
     "contracts_division": "division_valid.txt",
     "automatic_division": "division_valid.txt",
@@ -30,6 +31,7 @@ EXAMPLE_INPUTS = {
     "automatic_array_bounds": "array_valid.txt",
 }
 EXAMPLE_NAMES = {
+    "array_sum_input": "Read array values and add them",
     "review1": "Arithmetic (Review 1)",
     "sum_for": "Read and sum with FOR",
     "phase2_features": "STRING, bitwise and loop control",
@@ -39,7 +41,7 @@ EXAMPLE_NAMES = {
     "function_larger": "Typed function and RETURN",
     "invalid": "Invalid source and diagnostics",
 }
-FEATURED = ("review1", "sum_for", "logic_matrix", "function_larger",
+FEATURED = ("array_sum_input", "review1", "sum_for", "logic_matrix", "function_larger",
             "phase2_features", "automatic_division", "automatic_array_bounds", "invalid")
 
 
