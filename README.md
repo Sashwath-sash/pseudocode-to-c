@@ -109,6 +109,8 @@ For copy-ready Review 2 commands and a short explanation, see the [live demo she
 
 ## How it works
 
+The [public browser translator](https://sashwath-sash.github.io/pseudocode-to-c/) runs the same Python translation modules through Pyodide. It accepts typed pseudocode, shows each compiler stage and downloads generated C. GitHub Pages cannot run GCC, so the hosted edition does not execute the generated program; use the local website or CLI for the full translate-and-run demonstration. The browser edition needs an internet connection to load the pinned Pyodide runtime.
+
 ```text
 Pseudocode -> Tokens -> AST -> Semantic analysis and symbols
            -> Structured IR -> Optimized IR -> C -> GCC compile/run
